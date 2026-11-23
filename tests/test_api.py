@@ -79,10 +79,23 @@ async def test_mcp_tools(service: TerrainService) -> None:
         assert preview.content[0].mime_type == "image/png"
 
 
+INITIALIZE = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}},
+}
+
+
 @pytest.mark.parametrize(
-    "headers", [{"host": "evil.example"}, {"host": "localhost:8000", "origin": "http://evil.example"}]
+    ("headers", "status"),
+    [
+        ({"host": "terrain.localhost:8080"}, 200),
+        ({"host": "evil.example"}, 421),
+        ({"host": "terrain.localhost:8080", "origin": "http://evil.example"}, 403),
+    ],
 )
-def test_mcp_rejects_untrusted_host_and_origin(client: TestClient, headers: dict[str, str]) -> None:
+def test_mcp_guards_host_and_origin(client: TestClient, headers: dict[str, str], status: int) -> None:
     with client:
-        r = client.post("/mcp", json={}, headers={"accept": "application/json, text/event-stream", **headers})
-    assert r.status_code in {400, 403, 421}
+        r = client.post("/mcp", json=INITIALIZE, headers={"accept": "application/json, text/event-stream", **headers})
+    assert r.status_code == status
