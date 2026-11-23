@@ -77,3 +77,12 @@ async def test_mcp_tools(service: TerrainService) -> None:
         assert len(profile.structured_content["result"]) == 2
         preview = await mcp.call_tool("render_preview", {"west": 1, "south": 47, "east": 1.2, "north": 47.2})
         assert preview.content[0].mime_type == "image/png"
+
+
+@pytest.mark.parametrize(
+    "headers", [{"host": "evil.example"}, {"host": "localhost:8000", "origin": "http://evil.example"}]
+)
+def test_mcp_rejects_untrusted_host_and_origin(client: TestClient, headers: dict[str, str]) -> None:
+    with client:
+        r = client.post("/mcp", json={}, headers={"accept": "application/json, text/event-stream", **headers})
+    assert r.status_code in {400, 403, 421}

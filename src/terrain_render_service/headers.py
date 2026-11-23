@@ -1,4 +1,4 @@
-"""ASGI middleware adding browser security headers to every response."""
+"""ASGI middleware: browser security headers and sub-app dispatch."""
 
 from __future__ import annotations
 
@@ -42,3 +42,21 @@ class SecurityHeadersMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+class PathDispatchMiddleware:
+    """Send requests under `prefix` to `target` with the path unchanged; everything else to the wrapped app."""
+
+    def __init__(self, app: ASGIApp, prefix: str, target: ASGIApp) -> None:
+        """Wrap `app`."""
+        self.app = app
+        self.prefix = prefix
+        self.target = target
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Route by path prefix."""
+        path = scope.get("path", "")
+        if scope["type"] == "http" and (path == self.prefix or path.startswith(self.prefix + "/")):
+            await self.target(scope, receive, send)
+            return
+        await self.app(scope, receive, send)

@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .cache import TileCache
 from .dem import CopernicusSource, FlatSource, SourceLadder
-from .headers import SecurityHeadersMiddleware
+from .headers import PathDispatchMiddleware, SecurityHeadersMiddleware
 from .mcp_server import build_mcp
 from .service import TerrainService
 from .settings import Settings
@@ -60,6 +60,8 @@ def create_app(settings: Settings | None = None, service: TerrainService | None 
     # Stateless: no per-worker session memory, so any uvicorn worker can answer any MCP request.
     mcp_app = build_mcp(service).http_app(path="/mcp", stateless_http=True, allowed_hosts=settings.allowed_hosts)
     app = FastAPI(title="Terrain Render Service", lifespan=mcp_app.lifespan)
+    # Dispatch to the whole MCP app (not just its routes) so FastMCP's host/origin guard runs.
+    app.add_middleware(PathDispatchMiddleware, prefix="/mcp", target=mcp_app)
     app.add_middleware(SecurityHeadersMiddleware)
 
     @app.get("/healthz")
@@ -94,7 +96,6 @@ def create_app(settings: Settings | None = None, service: TerrainService | None 
     ) -> list[dict[str, float]]:
         return service.profile((from_lon, from_lat), (to_lon, to_lat), samples)
 
-    app.router.routes.extend(mcp_app.routes)
     if settings.web_dir.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dir, html=True), name="web")
     return app
