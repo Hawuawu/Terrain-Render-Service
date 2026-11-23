@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cesium/engine": "^26.5.0",
     "cesium": "^1.147.0"
   },
   "devDependencies": {
