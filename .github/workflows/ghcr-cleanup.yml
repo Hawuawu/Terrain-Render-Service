@@ -1,6 +1,6 @@
 name: GHCR cleanup
 # Keeps registry storage bounded: drop a PR's `pr-N` image when the PR closes, and weekly sweep
-# untagged, orphaned and partial multi-arch versions. Release tags and `edge` are never matched.
+# untagged, orphaned and ghost multi-arch versions. Release tags and `edge` are never matched.
 on:
   pull_request:
     types: [closed]
@@ -38,5 +38,4 @@ jobs:
           delete-untagged: true
           delete-orphaned-images: true
           delete-ghost-images: true
-          delete-partial-images: true
           older-than: 7 days
