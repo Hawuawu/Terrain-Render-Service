@@ -1,0 +1,19 @@
+{
+  "name": "terrain-render-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "copy-cesium": "node -e \"for (const d of ['Workers','ThirdParty','Assets','Widgets']) require('fs').cpSync('node_modules/cesium/Build/Cesium/'+d, 'public/cesium/'+d, {recursive: true})\"",
+    "dev": "npm run copy-cesium && vite",
+    "build": "npm run copy-cesium && tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cesium": "^1.147.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

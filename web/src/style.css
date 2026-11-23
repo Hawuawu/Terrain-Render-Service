@@ -1,0 +1,8 @@
+html, body, #globe { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+#panel {
+  position: absolute; top: 12px; left: 12px; padding: 10px 14px; border-radius: 6px;
+  background: rgb(20 24 30 / 85%); color: #e8eaed; font: 13px/1.5 system-ui, sans-serif;
+  display: flex; flex-direction: column; gap: 6px; max-width: 260px;
+}
+#panel h1 { margin: 0; font-size: 15px; }
+#readout { margin: 0; font-variant-numeric: tabular-nums; }
