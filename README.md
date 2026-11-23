@@ -62,6 +62,10 @@ Pushing a `v*` tag builds a multi-arch (amd64 + arm64) image `ghcr.io/hawuawu/te
 with SBOM and provenance. [K8S-Homelab](https://github.com/Hawuawu/K8S-Homelab) runs it from `apps/base/terrain`
 at http://terrain.localhost:8080 with a 10 GiB tile-cache volume; MCP clients use `http://terrain.localhost:8080/mcp`.
 
+Pull requests from this repo also push `ghcr.io/hawuawu/terrain-render-service:pr-<number>` (overwritten on each push),
+so a branch can be tried in the lab before merge. The `GHCR cleanup` workflow deletes that tag when the PR closes and
+weekly sweeps untagged and orphaned versions; release tags and `edge` are kept.
+
 ## Attribution
 
 Elevation: Copernicus DEM GLO-30 and GLO-90, © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018,

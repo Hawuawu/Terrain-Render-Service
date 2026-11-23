@@ -1,0 +1,42 @@
+name: GHCR cleanup
+# Keeps registry storage bounded: drop a PR's `pr-N` image when the PR closes, and weekly sweep
+# untagged, orphaned and partial multi-arch versions. Release tags and `edge` are never matched.
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '17 3 * * 0'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ghcr-cleanup
+  cancel-in-progress: false
+jobs:
+  pr-image:
+    name: Delete pr-${{ github.event.pull_request.number }} image
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: dataaxiom/ghcr-cleanup-action@ac45a8c04b1eb4b27974ca79a0a74f344c93664b # v1.3.0
+        with:
+          package: terrain-render-service
+          delete-tags: pr-${{ github.event.pull_request.number }}
+          delete-untagged: true
+  sweep:
+    name: Sweep untagged versions
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: dataaxiom/ghcr-cleanup-action@ac45a8c04b1eb4b27974ca79a0a74f344c93664b # v1.3.0
+        with:
+          package: terrain-render-service
+          delete-untagged: true
+          delete-orphaned-images: true
+          delete-ghost-images: true
+          delete-partial-images: true
+          older-than: 7 days
