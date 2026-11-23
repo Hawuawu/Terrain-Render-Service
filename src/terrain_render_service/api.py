@@ -56,7 +56,8 @@ def create_app(settings: Settings | None = None, service: TerrainService | None 
     """Build the ASGI app; `uvicorn terrain_render_service.api:create_app --factory`."""
     settings = settings or Settings()
     service = service or build_service(settings)
-    mcp_app = build_mcp(service).http_app(path="/mcp", allowed_hosts=settings.allowed_hosts)
+    # Stateless: no per-worker session memory, so any uvicorn worker can answer any MCP request.
+    mcp_app = build_mcp(service).http_app(path="/mcp", stateless_http=True, allowed_hosts=settings.allowed_hosts)
     app = FastAPI(title="Terrain Render Service", lifespan=mcp_app.lifespan)
     app.add_middleware(SecurityHeadersMiddleware)
 
