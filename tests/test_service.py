@@ -1,9 +1,10 @@
 import gzip
 import struct
 
+import numpy as np
 import pytest
 
-from terrain_render_service.mesh import max_error
+from terrain_render_service.mesh import max_error, tile_mesh
 from terrain_render_service.service import TerrainService, haversine_m
 from terrain_render_service.tiling import GeoBounds, TileId
 
@@ -62,3 +63,21 @@ def test_preview_is_png(service: TerrainService) -> None:
 
 def test_haversine_quarter_meridian() -> None:
     assert haversine_m((0, 0), (0, 90)) == pytest.approx(10_007_543, rel=1e-4)
+
+
+def test_mesh_keeps_north_up_and_counter_clockwise() -> None:
+    heights = np.zeros((65, 65), dtype=np.float32)
+    heights[0, :] = 1000  # row 0 is the north edge
+    positions, indices = tile_mesh(heights, GeoBounds(10, 40, 11, 41), 10)
+    assert set(positions[positions[:, 2] == 1000][:, 1].round(6)) == {41}
+    tri = positions[indices.reshape(-1, 3)]
+    cross = (tri[:, 1, 0] - tri[:, 0, 0]) * (tri[:, 2, 1] - tri[:, 0, 1]) - (tri[:, 2, 0] - tri[:, 0, 0]) * (
+        tri[:, 1, 1] - tri[:, 0, 1]
+    )
+    assert (cross > 0).all()
+
+
+def test_flat_root_tile_follows_the_globe() -> None:
+    positions, _ = tile_mesh(np.zeros((65, 65), dtype=np.float32), TileId(0, 0, 0).bounds, 0)
+    assert len(positions) > 4
+    assert not positions[:, 2].any()
