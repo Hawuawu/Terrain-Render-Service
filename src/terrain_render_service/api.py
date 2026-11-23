@@ -23,10 +23,11 @@ Lon = Annotated[float, Query(ge=-180, le=180)]
 
 def build_service(settings: Settings) -> TerrainService:
     """Wire the elevation sources and tile cache from settings."""
+    coarse = CopernicusSource(settings.glo90_url, 30, "copernicus-glo90")
     ladder = SourceLadder(
         flat=FlatSource(),
-        coarse=CopernicusSource(settings.glo90_url, 30, "copernicus-glo90"),
-        fine=CopernicusSource(settings.glo30_url, 10, "copernicus-glo30"),
+        coarse=coarse,
+        fine=CopernicusSource(settings.glo30_url, 10, "copernicus-glo30", fallback=coarse),
         coarse_from_zoom=settings.coarse_from_zoom,
         fine_from_zoom=settings.fine_from_zoom,
     )

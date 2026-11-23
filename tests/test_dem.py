@@ -80,3 +80,10 @@ def test_ladder_picks_by_zoom_and_span() -> None:
 def test_real_copernicus_zugspitze() -> None:
     source = CopernicusSource("https://copernicus-dem-30m.s3.amazonaws.com", 10, "glo30")
     assert 2800 < source.points([(10.9863, 47.4211)])[0] < 3000
+
+
+def test_missing_cells_fall_back_to_coarser_source(tmp_path: Path, local_source: CopernicusSource) -> None:
+    fine = CopernicusSource(str(tmp_path / "fine"), 10, "fine", max_cells=4, fallback=local_source)
+    fine.url = lambda cell: str(tmp_path / "fine" / cell.key(10) / f"{cell.key(10)}.tif")  # type: ignore[method-assign]
+    assert fine.points([(11.5, 48.5), (20.5, 10.5)]) == [500, 0]
+    assert fine.grid(GeoBounds(11.1, 48.1, 11.9, 48.9), 5).min() == 500

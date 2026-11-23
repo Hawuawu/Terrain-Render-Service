@@ -82,8 +82,14 @@ def cells_covering(bounds: GeoBounds) -> list[Cell]:
 class CopernicusSource:
     """Copernicus GLO-30 / GLO-90 on AWS Open Data; ocean cells have no file and read as 0 m."""
 
-    def __init__(self, base_url: str, arcsec: int, name: str, max_cells: int = 64) -> None:
-        """Read `<base_url>/<key>/<key>.tif`, refusing requests spanning more than `max_cells`."""
+    def __init__(
+        self, base_url: str, arcsec: int, name: str, max_cells: int = 64, fallback: CopernicusSource | None = None
+    ) -> None:
+        """Read `<base_url>/<key>/<key>.tif`, refusing requests spanning more than `max_cells`.
+
+        Cells missing here are read from `fallback` (GLO-30 omits some land that GLO-90 has).
+        """
+        self.fallback = fallback
         self.base_url = base_url.rstrip("/")
         self.arcsec = arcsec
         self.name = name
@@ -113,6 +119,8 @@ class CopernicusSource:
         try:
             src = rasterio.open(self.url(cell))
         except RasterioIOError:
+            if self.fallback:
+                self.fallback._warp_into(cell, out, transform)  # noqa: SLF001
             return
         with src:
             reproject(
@@ -141,7 +149,7 @@ class CopernicusSource:
         try:
             src = rasterio.open(self.url(cell))
         except RasterioIOError:
-            return [0.0] * len(lonlats)
+            return self.fallback._sample(cell, lonlats) if self.fallback else [0.0] * len(lonlats)  # noqa: SLF001
         with src:
             return [float(v[0]) for v in src.sample(lonlats)]
 
