@@ -6,6 +6,10 @@ on:
   pull_request:
 permissions:
   contents: read
+# A newer push to a PR cancels its older build, so `pr-N` always ends up on the latest commit.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('image-pr-{0}', github.event.pull_request.number) || format('image-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   build:
     name: Multi-arch image (amd64, arm64)

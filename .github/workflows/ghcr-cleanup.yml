@@ -1,21 +1,23 @@
 name: GHCR cleanup
 # Keeps registry storage bounded: drop a PR's `pr-N` image when the PR closes, and weekly sweep
 # untagged, orphaned and ghost multi-arch versions. Release tags and `edge` are never matched.
+# pull_request_target (no checkout, no PR code runs) still fires for PRs closed with merge conflicts.
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
   schedule:
     - cron: '17 3 * * 0'
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: ghcr-cleanup
-  cancel-in-progress: false
 jobs:
   pr-image:
     name: Delete pr-${{ github.event.pull_request.number }} image
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository
+    # Same group as the PR's image build: cancels a build still running so it cannot publish after this deletion.
+    concurrency:
+      group: image-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -27,7 +29,9 @@ jobs:
           delete-untagged: true
   sweep:
     name: Sweep untagged versions
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request_target'
+    concurrency:
+      group: ghcr-sweep
     runs-on: ubuntu-latest
     permissions:
       packages: write
