@@ -14,7 +14,8 @@ SECURITY_HEADERS = {
     "content-security-policy": CONTENT_SECURITY_POLICY,
     "x-content-type-options": "nosniff",
     "x-frame-options": "DENY",
-    "referrer-policy": "no-referrer",
+    # OSM tile policy requires a Referer; send only the origin cross-site.
+    "referrer-policy": "strict-origin-when-cross-origin",
     "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
     "cross-origin-opener-policy": "same-origin",
     "cross-origin-resource-policy": "same-origin",
