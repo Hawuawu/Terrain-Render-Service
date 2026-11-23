@@ -20,7 +20,8 @@ FROM python:3.13-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 && rm -rf /var/lib/apt/lists/*
 # pip is not needed at runtime and vendors its own (often outdated) urllib3/msgpack.
 RUN rm -rf /usr/local/lib/python3.13/site-packages/pip* /usr/local/lib/python3.13/ensurepip /usr/local/bin/pip*
-RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
+RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app \
+    && mkdir -p /data/cache && chown -R 10001:10001 /data
 WORKDIR /app
 COPY --from=app /app/.venv /app/.venv
 COPY --from=web /web/dist /app/web
