@@ -8,11 +8,10 @@ import {
   Raycaster,
   Scene,
   Vector2,
-  Vector3,
   WebGLRenderer,
 } from 'three';
 import { GlobeControls, type View } from './controls.ts';
-import { EARTH_RADIUS, geoToXyz, xyzToGeo } from './shared.ts';
+import { xyzToGeo } from './shared.ts';
 import { VoxelGlobe } from './tiles.ts';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -105,22 +104,28 @@ async function pick(x: number, y: number, z: number): Promise<void> {
   readout.textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°: ${Math.round(body.elevation_m)} m`;
 }
 
-const groundRay = new Raycaster();
-function groundUnder(v: View): number {
-  const up = new Vector3(...geoToXyz(v.lon, v.lat, 1));
-  groundRay.set(up.clone().multiplyScalar(EARTH_RADIUS * 3), up.clone().negate());
-  const hit = groundRay.intersectObjects(globe.meshes(), false)[0];
-  return hit ? hit.point.length() - EARTH_RADIUS : 0;
+// The ground comes from the DEM, not from the shown meshes: those change with LOD, which depends on the
+// camera height, which would feed back into the ground and make the LOD oscillate.
+let groundMetres = 0;
+let groundKey = '';
+let groundTimer = 0;
+function updateGround(v: View): void {
+  const key = `${v.lat.toFixed(3)},${v.lon.toFixed(3)}`;
+  if (key === groundKey) return;
+  groundKey = key;
+  clearTimeout(groundTimer);
+  groundTimer = window.setTimeout(async () => {
+    const r = await fetch(`/api/elevation?lat=${v.lat.toFixed(5)}&lon=${v.lon.toFixed(5)}`).catch(() => null);
+    if (!r?.ok || key !== groundKey) return;
+    groundMetres = Math.max(0, ((await r.json()) as { elevation_m: number }).elevation_m);
+  }, 300);
 }
 
-let lastGround = 0;
 let lastHash = 0;
 let lastStatus = 0;
 function frame(now: number): void {
-  if (now - lastGround > 200) {
-    lastGround = now;
-    controls.ground = groundUnder(controls.view);
-  }
+  updateGround(controls.view);
+  controls.ground = groundMetres * globe.exaggeration;
   controls.apply(camera);
   const v = controls.view;
   camera.near = Math.max(0.5, v.alt * 0.001);
