@@ -40,7 +40,8 @@ container.appendChild(renderer.domElement);
 
 // Globe view.
 const globeScene = new Scene();
-globeScene.background = new Color(0x02040a);
+// No scene.background: three.js would clear the colour buffer on every pass of the layered relief render.
+renderer.setClearColor(0x02040a);
 const globeCamera = new PerspectiveCamera(60, 1, 1, 1e8);
 const meta = (await (await fetch('/relief/meta.json')).json()) as { max_zoom: number; area_size_m: number };
 const globe = new ReliefGlobe(globeScene, meta.max_zoom);
