@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildChunk, buildRange, quantise } from './mesher.ts';
-import { CHUNK, levelOf, mercatorLat, mercatorTile } from './shared.ts';
+import { CHUNK, levelOf, lowest, mercatorLat, mercatorTile } from './shared.ts';
 
 type Vec = [number, number, number];
 const N = CHUNK;
@@ -81,4 +81,15 @@ test('mercator helpers round-trip', () => {
   const t = mercatorTile(5, 6.86, 45.83);
   assert.ok(Math.abs(mercatorLat(5, t.y) - 45.83) < 1e-9);
   assert.equal(mercatorLat(0, 0.5), 0);
+});
+
+test('lowest takes the minimum height within the radius', () => {
+  const n = 5;
+  const pos = new Float32Array(n * n * 3);
+  for (let k = 0; k < n * n; k++) pos[k * 3 + 1] = 100 + k;
+  pos[(2 * n + 2) * 3 + 1] = -5;
+  const low = lowest(pos, n, 1);
+  assert.equal(low[0], 100);
+  assert.equal(low[n + 1], -5);
+  assert.equal(low[4 * n + 4], 118);
 });

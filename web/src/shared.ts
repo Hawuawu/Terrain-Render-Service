@@ -67,3 +67,18 @@ export function mercatorTile(z: number, lon: number, lat: number): { x: number; 
 export function levelOf(h: number, exaggeration: number, cell: number): number {
   return Math.round((Math.max(h, 0) * exaggeration) / cell);
 }
+
+/** For each vertex of an `n`×`n` sheet, the lowest height within `r` samples: low enough to stay under voxel valleys. */
+export function lowest(positions: Float32Array, n: number, r: number): Float32Array {
+  const low = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      let m = Infinity;
+      for (let v = Math.max(0, y - r); v <= Math.min(n - 1, y + r); v++) {
+        for (let u = Math.max(0, x - r); u <= Math.min(n - 1, x + r); u++) m = Math.min(m, positions[(v * n + u) * 3 + 1]);
+      }
+      low[y * n + x] = m;
+    }
+  }
+  return low;
+}

@@ -125,8 +125,8 @@ const viewer = { value: new Vector2() };
 /** Voxels are drawn up to this distance from the viewer. */
 const VOXEL_REACH_M = LOAD_M;
 /**
- * Far-field vertices inside the voxel reach sink below sea level, so coarse triangles never bridge a valley the voxels
- * draw; only the ramp up to the first vertex outside the reach can show, under the voxels' edge.
+ * Far-field vertices inside the voxel reach drop to the lowest height around them, so coarse triangles stay under the
+ * voxel valleys without opening a trench at the voxels' edge.
  */
 const FAR_INNER_M = VOXEL_REACH_M;
 const CURVE = `
@@ -166,14 +166,14 @@ material.onBeforeCompile = (shader) => {
     );
 };
 const farMaterial = new MeshLambertMaterial({ vertexColors: true });
-// Under the voxels the far field sinks below sea level (voxels never go below it), and the triangles rising from
-// there to its full height just inside the voxels' cut edge close the view under that edge.
-farMaterial.onBeforeCompile = (shader) =>
+farMaterial.onBeforeCompile = (shader) => {
   curved(
     shader,
     'false',
-    `\n  if (length(curveD) < ${FAR_INNER_M.toFixed(1)}) transformed.y = -400.0 - dot(curveD, curveD) / ${(2 * EARTH_RADIUS).toFixed(1)};`,
+    `\n  if (length(curveD) < ${FAR_INNER_M.toFixed(1)}) transformed.y = low - dot(curveD, curveD) / ${(2 * EARTH_RADIUS).toFixed(1)};`,
   );
+  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float low;');
+};
 const voxels = new PatchField(material);
 areaScene.add(voxels.group);
 const horizon = new Horizon(

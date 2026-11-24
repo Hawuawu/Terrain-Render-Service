@@ -3,6 +3,7 @@
 import { BufferAttribute, Mesh, type Material, PlaneGeometry, type Vector3 } from 'three';
 import { hypsometric } from './palette.ts';
 import type { Origin } from './patches.ts';
+import { lowest } from './shared.ts';
 
 export const FAR_STEP_M = 50_000;
 
@@ -13,6 +14,9 @@ interface Field {
   n: number;
   cell: number;
 }
+
+/** Samples (about 1.6 km each) around a vertex whose lowest height it takes under the voxels. */
+const LOW_RADIUS = 2;
 
 export class Horizon {
   mesh: Mesh | null = null;
@@ -67,6 +71,7 @@ export class Horizon {
       colors.set(hypsometric(h), k * 3);
     }
     g.setAttribute('color', new BufferAttribute(colors, 3, true));
+    g.setAttribute('low', new BufferAttribute(lowest(pos.array as Float32Array, f.n, LOW_RADIUS), 1));
     g.computeVertexNormals();
     const mesh = new Mesh(g, this.material);
     mesh.position.set(f.i * FAR_STEP_M, 0, f.j * FAR_STEP_M);
