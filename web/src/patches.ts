@@ -69,7 +69,7 @@ export class PatchField {
       for (let i = ci - reach; i <= ci + reach; i++) {
         const d = this.distance(i, j, at);
         if (d > LOAD_M || this.patches.has(`${i},${j}`)) continue;
-        if (Math.abs(o.lat - (j * PATCH_M) / METRES_PER_DEGREE) > MAX_PATCH_LAT) continue;
+        if (!this.servable(j)) continue;
         const ahead = (i * PATCH_M - at.x) * dir.x + (j * PATCH_M - at.z) * dir.z;
         wanted.push({ i, j, score: d - 0.5 * ahead });
       }
@@ -96,7 +96,7 @@ export class PatchField {
     for (let j = cj - r; j <= cj + r; j++) {
       for (let i = ci - r; i <= ci + r; i++) {
         const p = this.patches.get(`${i},${j}`);
-        if (this.distance(i, j, at) <= radius && !p?.mesh && !p?.failed) return false;
+        if (this.distance(i, j, at) <= radius && this.servable(j) && !p?.mesh && !p?.failed) return false;
       }
     }
     return true;
@@ -132,6 +132,10 @@ export class PatchField {
     this.group.clear();
     this.loading = 0;
     this.origin = null;
+  }
+
+  private servable(j: number): boolean {
+    return !!this.origin && Math.abs(this.origin.lat - (j * PATCH_M) / METRES_PER_DEGREE) <= MAX_PATCH_LAT;
   }
 
   private distance(i: number, j: number, at: Vector3): number {
