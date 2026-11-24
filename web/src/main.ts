@@ -199,6 +199,7 @@ window.addEventListener('keydown', (e) => {
     loadingArea = false;
     flight = null;
     status.textContent = 'Cancelled.';
+    lastStatus = performance.now() + 2000;
   }
 });
 exaggeration.addEventListener('change', () => {

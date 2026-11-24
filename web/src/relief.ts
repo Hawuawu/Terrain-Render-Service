@@ -34,7 +34,8 @@ interface Tile {
 }
 
 function patch(z: number, x: number, y: number): { geometry: BufferGeometry; centre: [number, number, number] } {
-  const seg = z < 4 ? 24 : 12;
+  // About 1 degree per segment, so a patch sags at most ~100 m below the sphere.
+  const seg = Math.max(8, Math.min(96, Math.ceil(360 / 2 ** z)));
   const n = 2 ** z;
   const lonAt = (u: number) => ((x + u) / n) * 360 - 180;
   const centre = geoToXyz(lonAt(0.5), mercatorLat(z, y + 0.5), EARTH_RADIUS);
@@ -100,7 +101,7 @@ export class ReliefGlobe {
   constructor(scene: Scene, maxZoom: number) {
     this.scene = scene;
     this.maxZoom = maxZoom;
-    const polar = new Mesh(new SphereGeometry(EARTH_RADIUS * 0.9995, 64, 32), new MeshBasicMaterial({ color: 0x1d2b40 }));
+    const polar = new Mesh(new SphereGeometry(EARTH_RADIUS * 0.99, 64, 32), new MeshBasicMaterial({ color: 0x1d2b40 }));
     polar.rotation.x = Math.PI / 2;
     this.group.add(polar);
     scene.add(this.group);
@@ -119,8 +120,11 @@ export class ReliefGlobe {
     let keys = cover(view, zoom);
     while (!keys && zoom > BASE_ZOOM) keys = cover(view, --zoom);
     this.levels = [{ z: BASE_ZOOM, keys: this.request(BASE_ZOOM, cover(view, BASE_ZOOM) ?? []) }];
+    // Also fetch two levels up, so a fast zoom always has coarser imagery to show while the target loads.
+    const fallback = zoom - 2;
     for (let z = Math.max(BASE_ZOOM + 1, zoom - FALLBACK_LEVELS); z < zoom; z++) {
-      this.levels.push({ z, keys: (cover(view, z) ?? []).map(([x, y]) => `${z}/${x}/${y}`) });
+      const tiles = cover(view, z) ?? [];
+      this.levels.push({ z, keys: z === fallback ? this.request(z, tiles) : tiles.map(([x, y]) => `${z}/${x}/${y}`) });
     }
     if (zoom > BASE_ZOOM) this.levels.push({ z: zoom, keys: this.request(zoom, keys ?? []) });
     for (const level of this.levels) for (const k of level.keys) {
