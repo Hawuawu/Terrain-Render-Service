@@ -1,19 +1,27 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:," />
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Terrain Render Service</title>
-    <link rel="stylesheet" href="/src/style.css" />
+    <title>Voxel terrain globe</title>
   </head>
   <body>
     <div id="globe"></div>
     <aside id="panel">
-      <h1>Terrain</h1>
-      <label><input id="osm" type="checkbox" checked /> OpenStreetMap imagery</label>
-      <label>Exaggeration <input id="exaggeration" type="range" min="1" max="5" step="0.5" value="1.5" /></label>
-      <p id="readout">Click the globe to read the elevation.</p>
+      <h1>Voxel terrain</h1>
+      <label>
+        Exaggeration
+        <input id="exaggeration" type="range" min="1" max="20" step="1" value="4" />
+      </label>
+      <label><input id="outlines" type="checkbox" checked /> Block outlines</label>
+      <p id="readout">Click the terrain to read the elevation.</p>
+      <p id="status"></p>
+      <p class="hint">Drag to pan · wheel to zoom · right-drag or shift-drag to tilt and turn</p>
+      <p class="credit">
+        Copernicus DEM GLO-30/GLO-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 ·
+        Overview: AWS Terrain Tiles (Mapzen and others)
+      </p>
     </aside>
     <script type="module" src="/src/main.ts"></script>
   </body>

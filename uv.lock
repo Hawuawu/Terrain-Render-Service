@@ -1723,52 +1723,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pydelatin"
-version = "0.4.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/2b/d5/c57d68e93169003af3fce047df1a46d57532c3b2ef8f440792faf8abbe21/pydelatin-0.4.0.tar.gz", hash = "sha256:d0ab7bd372582c89f3ce1d50214e571c565364ff7b2e3ca883638ca004d63355", size = 683118, upload-time = "2026-10-09T23:53:01.17Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/d0/8ed8b735aaff35c82de303e4639f212e4327ea82f61d833f803eae921fe3/pydelatin-0.4.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:8b64288310904d2ccf376e6523bccf40bacb076edddc715f3e2664524ffe9039", size = 205851, upload-time = "2026-10-09T23:52:00.794Z" },
-    { url = "https://files.pythonhosted.org/packages/fa/66/eafe9461a6f3efaa67515cb49e4e3c964006e219e45ccb81e223318d889d/pydelatin-0.4.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:e0bd8fcec08f86eb0a2c2ddb019602f085659a70fbcaaa2969eea3bf8bc533da", size = 192287, upload-time = "2026-10-09T23:52:02.127Z" },
-    { url = "https://files.pythonhosted.org/packages/99/7e/5faaa2da160cc841a67bd0548402a9cbb56b8627f85f57134e29d94e4046/pydelatin-0.4.0-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:170edd8ade9d2a70abb146ad25a2f7466fc0461a69b10203ddff12f071062e35", size = 229101, upload-time = "2026-10-09T23:52:03.36Z" },
-    { url = "https://files.pythonhosted.org/packages/4f/0d/4b25147fc4a80f494f2b91fce77bc83e511ae74ac9a7dc47e645aa3fb9ce/pydelatin-0.4.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8402ab0189ba240af6ae2a70644caecd62e604da9beefd53dab6397c79639c9b", size = 237381, upload-time = "2026-10-09T23:52:04.611Z" },
-    { url = "https://files.pythonhosted.org/packages/e7/fa/2455e6dae60e9ea1012da2d471b825bb42bae1ac6b43f544c8c1b901afaf/pydelatin-0.4.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:c0098e948630792c189af796ba30def086d802c9778aef4ebc627a27000d0e4b", size = 1219084, upload-time = "2026-10-09T23:52:05.998Z" },
-    { url = "https://files.pythonhosted.org/packages/7a/08/bb214bbb34d7b7bdf6bd09be21f51afe0d9fa49989b6d82969a5f6d65802/pydelatin-0.4.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:991ac440e40c46e6fad30e028b65f47d40d7c664f48367c7900463352bcee01e", size = 1271645, upload-time = "2026-10-09T23:52:07.37Z" },
-    { url = "https://files.pythonhosted.org/packages/b0/d9/6c896e5f18e3961d70b14d78292b95ceaeabca4d56f8bd58b915749fee24/pydelatin-0.4.0-cp313-cp313-win_amd64.whl", hash = "sha256:d5f1875cc3972ffd2713813a6b19d20e2b965b240de342aabd6b4dfef782c848", size = 305377, upload-time = "2026-10-09T23:52:08.856Z" },
-    { url = "https://files.pythonhosted.org/packages/55/7e/e3105fd20e409f112dd24b29c6c02aa39afcf7b8239355f04da7051968a2/pydelatin-0.4.0-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:f9804e2d405745a2868de24364fe7f009fd2d4bb6e647cc09b8d5a59fd879080", size = 206123, upload-time = "2026-10-09T23:52:10.343Z" },
-    { url = "https://files.pythonhosted.org/packages/4c/b5/6c4f1df25dd9911e3f4a4767dfe049a42fa3a65ced9d87fc6bc15cfce22f/pydelatin-0.4.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:d9f719e1488b8770599314e0c4aa6167faf0c79ba7c59520787b6e2336469b13", size = 192344, upload-time = "2026-10-09T23:52:11.694Z" },
-    { url = "https://files.pythonhosted.org/packages/95/a9/45aecbcb57b91f3923a310e7cd554f016159f5569bc7ef66cf8a11169311/pydelatin-0.4.0-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ca96bc84acad5bd844213b19b36dbabfd046a4fb929df6fb2afb9ade25dd79a6", size = 229604, upload-time = "2026-10-09T23:52:13.015Z" },
-    { url = "https://files.pythonhosted.org/packages/b4/3e/b7d8b02c196a187cfcba0769431563267b237caaea57f09cc1db6ac1a1e7/pydelatin-0.4.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2cb3383c4dc243b55c069071fb3238726f0a3cf92966ce24d1aa43bcda12a6fe", size = 237509, upload-time = "2026-10-09T23:52:14.332Z" },
-    { url = "https://files.pythonhosted.org/packages/f0/19/f6bac0923787d69aced0cf2e2bf3898269d0b1cb25e65daaf33f7cc1b40c/pydelatin-0.4.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:a7aa947ceaa167eccf402de8f39662104668267e04fe0e1d618f154a85191d29", size = 1219585, upload-time = "2026-10-09T23:52:16.105Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/7e/620a8316a00e4bc58d3b6031a3a84847e33d7d97e21773159e9c528016f6/pydelatin-0.4.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:639a1d982fb0e665a97ac488738a1674b93441dd4616fcc838797582b2152d75", size = 1271830, upload-time = "2026-10-09T23:52:17.838Z" },
-    { url = "https://files.pythonhosted.org/packages/9f/85/384c189b97e1f80c9cd02b2304d3a1c3344a496339033559183958cfd226/pydelatin-0.4.0-cp314-cp314-win_amd64.whl", hash = "sha256:7d87a4d509bc7c2f2ffcb0eb33fbb9216053665e8bd20ea34332451925cdc4ac", size = 314933, upload-time = "2026-10-09T23:52:19.21Z" },
-    { url = "https://files.pythonhosted.org/packages/f5/b8/87bdced9cc893e4432be7163f553bf9f9f31a97adf5901e4b4b95164eba0/pydelatin-0.4.0-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:c9bfa1828c8e0a7711a2c39b64fed48d30c1eff73c2314ccb1a1c2d2be230896", size = 212411, upload-time = "2026-10-09T23:52:20.635Z" },
-    { url = "https://files.pythonhosted.org/packages/fb/21/24516250eb434eca08d0135f7e286b3ade4d71c4fd6569cd6139cdaee437/pydelatin-0.4.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:62630a9c8bd96d1d2c951b97edff15ee0241424afa410347ace7799d3e107470", size = 200295, upload-time = "2026-10-09T23:52:21.978Z" },
-    { url = "https://files.pythonhosted.org/packages/78/ee/b5cd915f04e5ff85fc0320437645be445d4a4a03e16754bcdd2644d0dbc4/pydelatin-0.4.0-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5f5bd5e1936c444e754cbcbb4044352785663401346e9473bec68e611f6df33b", size = 231046, upload-time = "2026-10-09T23:52:23.314Z" },
-    { url = "https://files.pythonhosted.org/packages/79/e2/d288e967d5bb0f2703c383ec410e1cdf155d0b3e7c1d4fa764861560eff8/pydelatin-0.4.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:fd0a9f50d8fa1098651bbe79c5cde801d083ec0e2d6dfb4748461c3eeb0a0635", size = 238507, upload-time = "2026-10-09T23:52:24.592Z" },
-    { url = "https://files.pythonhosted.org/packages/79/4e/71f6f212b6bf1ee26bb737db14fa4608c35f90dfa4e84d8005e8d232e674/pydelatin-0.4.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:a7f3a91f37d7297b66009ee00c143f2a03d668441a3d2ff4701775ff23ce6773", size = 1221474, upload-time = "2026-10-09T23:52:25.97Z" },
-    { url = "https://files.pythonhosted.org/packages/61/ae/d7bf2a382c5da6d18f82f7e4695aef7365a3c4725a804c42fce39331a4ef/pydelatin-0.4.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:21ce65eae78861dad06f5ff95e8c2087fd939d388155d73efb30bf4c58a3c40a", size = 1272733, upload-time = "2026-10-09T23:52:27.442Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/2f/b2a29f841afc5bf987c9c6108c7fd6d578e60dd7b74157528781fa5686ab/pydelatin-0.4.0-cp314-cp314t-win_amd64.whl", hash = "sha256:2a5099bc94c0e72f1e1ba528050c1d534cb5c444e5aa9924d0321daea25c715f", size = 320319, upload-time = "2026-10-09T23:52:29.035Z" },
-    { url = "https://files.pythonhosted.org/packages/68/d1/741cd895e396aa93b958607e2f383e5d30d4f8c68ba8afef6b883335c6e6/pydelatin-0.4.0-cp315-cp315-macosx_10_15_x86_64.whl", hash = "sha256:2c61d64b74b80fc6ecf25899701c607330b2d978046c0f86fd15f9856c67bdef", size = 206129, upload-time = "2026-10-09T23:52:30.518Z" },
-    { url = "https://files.pythonhosted.org/packages/26/1a/2f5a7d6f84b74ad9ec2736040e4c9019ab2052850da3abe4fee27e2d0899/pydelatin-0.4.0-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:26586ffb1d2c1dffe2ef0ce83abdd6723cde163e2750970d3c7d1391eb8f8fac", size = 192439, upload-time = "2026-10-09T23:52:31.825Z" },
-    { url = "https://files.pythonhosted.org/packages/de/ac/64470b105627e752f3592bfd5f44694f803c0b228d13bdae9bbdced399e6/pydelatin-0.4.0-cp315-cp315-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8194304b91b80215d3b4174f6fd099c192b0ec339525493f578b269a860e8f70", size = 230028, upload-time = "2026-10-09T23:52:33.316Z" },
-    { url = "https://files.pythonhosted.org/packages/5b/c8/99564588eefd87539ad44fb04782f3976034817fd6bb4f1837159270949b/pydelatin-0.4.0-cp315-cp315-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1657142228edef24153da73ce8408d3caf9c4cfa4aea8f893318e21d370e362d", size = 240140, upload-time = "2026-10-09T23:52:34.632Z" },
-    { url = "https://files.pythonhosted.org/packages/8b/02/8f4acf0b84fec8b2e8710c843c4dfbe38eb18f3385a7c469e352338f7363/pydelatin-0.4.0-cp315-cp315-musllinux_1_2_aarch64.whl", hash = "sha256:be2e19fe06d58aeb99b3be99ac83a78549dfc518fbf96f422770fe5b7f56747c", size = 1219990, upload-time = "2026-10-09T23:52:35.978Z" },
-    { url = "https://files.pythonhosted.org/packages/02/18/6851b2fb6402171ff0a9b31552d8cbeff3e9b6ec49c6e0947f3b3138d189/pydelatin-0.4.0-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:b20f04db60bbdc24b19025373e4cdb6e5868f1a3e6db595d9c49b6e30a268e16", size = 1274062, upload-time = "2026-10-09T23:52:37.54Z" },
-    { url = "https://files.pythonhosted.org/packages/f0/dd/f7f2bc3050eef51f6aa5ad431b9ebdb270a42f0c1accdc657d70277b72c4/pydelatin-0.4.0-cp315-cp315-win_amd64.whl", hash = "sha256:05f82ccc44ae014522c3dd89b402d2282f5805541279b70c3560ed6412008051", size = 314930, upload-time = "2026-10-09T23:52:38.965Z" },
-    { url = "https://files.pythonhosted.org/packages/08/8c/c55a88574fef3977c71c68b4a9446cad208962dc6cceac8ddb5dc71c51fc/pydelatin-0.4.0-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:f27a8eb4d2d0bcb866336330aa3fea53164cd578f3d7fcb170e234c427e381f4", size = 212383, upload-time = "2026-10-09T23:52:40.254Z" },
-    { url = "https://files.pythonhosted.org/packages/29/99/f05f824c3f8220075bc87fe45db1836e48cce9f348639a0b2f8a3724aa3c/pydelatin-0.4.0-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:e641a21814a8bffb0309d4ad048584ea57263a86ca44379760efdd55c2c2289e", size = 200321, upload-time = "2026-10-09T23:52:41.529Z" },
-    { url = "https://files.pythonhosted.org/packages/c3/f7/d0173e75667bddee7e611a45320ce834dfeee69a5a7379ede26d5263f272/pydelatin-0.4.0-cp315-cp315t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:769f2ecdf44908e1fbcb8a6cd60a54c693f2465f4048bfaf3c2124d6d5359e41", size = 231791, upload-time = "2026-10-09T23:52:42.822Z" },
-    { url = "https://files.pythonhosted.org/packages/bb/46/984a3ead0b3f362ae55fa98116e399254f26fd7e02da17ad0dbf21bd70d9/pydelatin-0.4.0-cp315-cp315t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:30df1f63d89a051db0093d7e7658dc8a7fd6faa7b7fcfb62c13f4592149b71c9", size = 241145, upload-time = "2026-10-09T23:52:44.447Z" },
-    { url = "https://files.pythonhosted.org/packages/38/39/62c0273ee894a63d157c118acb52f36d4f3850a5a4db50555700e804dc41/pydelatin-0.4.0-cp315-cp315t-musllinux_1_2_aarch64.whl", hash = "sha256:3c7e65f98fbe0327c940e7ffff9aa7ab739117b4740b7944db5240d54bc3d0bb", size = 1221989, upload-time = "2026-10-09T23:52:46.118Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/0b/89df227e9f535059872f664ae02ea770d9723fcdef8bf875903f9ebb333a/pydelatin-0.4.0-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:5200a161951421ddb6ba3415676bb1b097fa9efdba359c7d53d40fafabc22beb", size = 1275355, upload-time = "2026-10-09T23:52:48.199Z" },
-    { url = "https://files.pythonhosted.org/packages/f1/ad/1a6fa868a269718a12740d5e5cb5a84b1252d10d056be3b0891678f4ff3c/pydelatin-0.4.0-cp315-cp315t-win_amd64.whl", hash = "sha256:6895b0c0dc8f4d3a7860d28d1dfceebdca0cd2403ae5755f2c78443364a74bce", size = 320397, upload-time = "2026-10-09T23:52:49.699Z" },
-]
-
-[[package]]
 name = "pygments"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1937,26 +1891,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/bb/85/62d54e223b4bc89ff85f087a5ce2648e5d929d3214d64613dbae17d5e045/pyyaml-6.0.4-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:a65339c24f2fb8d4419e06ceec1bda98bdcff727b3b533a81d5af6bb2dd34520", size = 845763, upload-time = "2026-11-20T23:37:01.331Z" },
     { url = "https://files.pythonhosted.org/packages/eb/40/6bd9090368664be984a83fd7fe64f8e044b067a52449679c309706e3199d/pyyaml-6.0.4-cp315-cp315t-win_amd64.whl", hash = "sha256:a3cc63af3d639d1609143711837b926183418260aae89ed95193c07b25b99d33", size = 163170, upload-time = "2026-11-20T23:37:02.3Z" },
     { url = "https://files.pythonhosted.org/packages/0d/22/468d36762a0c650cf2295052998eb1d419053335ea9ff48a043f5ae4d578/pyyaml-6.0.4-cp315-cp315t-win_arm64.whl", hash = "sha256:d276f23e2371deb5ee68dd252cc9c2402b806b54d8d2cc7efbb6c34c3a78d886", size = 156942, upload-time = "2026-11-20T23:37:03.209Z" },
-]
-
-[[package]]
-name = "quantized-mesh-encoder"
-version = "0.5.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "attrs" },
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/70/a3/9a9518d514a7561f2caa37b4004d8ccc1512fb070cc4411bc2c5299ff4c5/quantized_mesh_encoder-0.5.0.tar.gz", hash = "sha256:8b2e133dde20ae81a727445c28f47f303c2126f3b0915e19f0c8ef88710bef40", size = 179356, upload-time = "2025-06-24T21:16:04.438Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/95/f8884d17c5938961f9850ac3a88090e61cc458218089980938bf814aa600/quantized_mesh_encoder-0.5.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:7927a00b6bb5fa64800f4641afe9519703795458b611d580e9d9f00d7c9013fa", size = 258140, upload-time = "2025-06-24T21:15:44.326Z" },
-    { url = "https://files.pythonhosted.org/packages/e9/bf/8f8bc658d579f44a6b6f892228f8e3158c40ee14be855e0aa33c7d0094bb/quantized_mesh_encoder-0.5.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:125a6a00a81c7ab9705f00aabcc4c1d378fe5cdc8fccab55f5f6406ba6a09c92", size = 251697, upload-time = "2025-06-24T21:15:45.762Z" },
-    { url = "https://files.pythonhosted.org/packages/4e/12/cd8ce250ea25e747a823e30cdadf98b8bcee11bc6a8cd31706bfcb8174c2/quantized_mesh_encoder-0.5.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e01ebcc62a4e20cb90e0a327e8c1e5586bdbae4a34b9fb28b56cdc06c322a16c", size = 673787, upload-time = "2025-06-24T21:15:46.82Z" },
-    { url = "https://files.pythonhosted.org/packages/5f/c7/b5adababce5eebb15b742268d6e1d4d33a90486778b9967e58c368a77722/quantized_mesh_encoder-0.5.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b7e9c9836b3d55868831cfe96071b1c5246e8fbe79b43788074d7d97d2f19191", size = 684293, upload-time = "2025-06-24T21:15:48.427Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/16/7b57c32a72c9b259c42ba9ba0f95519cf57ff2af6456c0c306be20beb0e4/quantized_mesh_encoder-0.5.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:e120b2222d1470ca75293163dbe2cec133c8c9b39cfb664fd037001bb51c84c5", size = 665973, upload-time = "2025-06-24T21:15:49.548Z" },
-    { url = "https://files.pythonhosted.org/packages/b9/b3/3717f502b558f8501b08788431df709b89c8129f4a905ca3358972bb8ab1/quantized_mesh_encoder-0.5.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:2faf3ce4ef92d2cefe4b1b3c71bb89f4f1817f624b24fba3cbdb1e12c86ec092", size = 686225, upload-time = "2025-06-24T21:15:50.694Z" },
-    { url = "https://files.pythonhosted.org/packages/35/1a/bceba85b4eba9b370936fde1bcd186d96fdc18262ad2de6971fa1fad6cac/quantized_mesh_encoder-0.5.0-cp313-cp313-win32.whl", hash = "sha256:d724e70663d9c2cc879bbeae1eb633cb30a6975c3a9e37992652d4a02112a08c", size = 239019, upload-time = "2025-06-24T21:15:51.756Z" },
-    { url = "https://files.pythonhosted.org/packages/93/31/89c4da31a5516ed7636be4ee306a3e88eb49d361b35dea614e0b7ef91176/quantized_mesh_encoder-0.5.0-cp313-cp313-win_amd64.whl", hash = "sha256:4a040eec4f6344cd994fea3ff9217a45e773e379a783484dc4dc34be7480b0df", size = 251666, upload-time = "2025-06-24T21:15:53.165Z" },
 ]
 
 [[package]]
@@ -2209,8 +2143,6 @@ dependencies = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "pydantic-settings" },
-    { name = "pydelatin" },
-    { name = "quantized-mesh-encoder" },
     { name = "rasterio" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -2233,8 +2165,6 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.5.5" },
     { name = "pillow", specifier = ">=13.0.0" },
     { name = "pydantic-settings", specifier = ">=2.16.3" },
-    { name = "pydelatin", specifier = ">=0.4.0" },
-    { name = "quantized-mesh-encoder", specifier = ">=0.5.0" },
     { name = "rasterio", specifier = ">=1.5.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]

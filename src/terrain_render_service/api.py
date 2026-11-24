@@ -1,22 +1,22 @@
-"""FastAPI application: Cesium terrain tiles, elevation API, MCP endpoint and the globe UI."""
+"""FastAPI application: voxel column tiles, elevation API, MCP endpoint and the voxel globe UI."""
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from .cache import TileCache
-from .dem import CopernicusSource, FlatSource, SourceLadder
+from .dem import CopernicusSource, SourceLadder, TerrariumSource
 from .headers import PathDispatchMiddleware, SecurityHeadersMiddleware
 from .mcp_server import build_mcp
 from .service import TerrainService
 from .settings import Settings
-from .tiling import TileId, layer_availability
+from .tiling import TileId
+from .voxels import VOXEL_TILE, voxel_size_m
 
-ATTRIBUTION = "Copernicus DEM GLO-30/GLO-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018"
 Lat = Annotated[float, Query(ge=-90, le=90)]
 Lon = Annotated[float, Query(ge=-180, le=180)]
 
@@ -25,32 +25,13 @@ def build_service(settings: Settings) -> TerrainService:
     """Wire the elevation sources and tile cache from settings."""
     coarse = CopernicusSource(settings.glo90_url, 30, "copernicus-glo90")
     ladder = SourceLadder(
-        flat=FlatSource(),
+        overview=TerrariumSource(settings.terrarium_url),
         coarse=coarse,
         fine=CopernicusSource(settings.glo30_url, 10, "copernicus-glo30", fallback=coarse),
         coarse_from_zoom=settings.coarse_from_zoom,
         fine_from_zoom=settings.fine_from_zoom,
     )
     return TerrainService(ladder, TileCache(settings.cache_dir, settings.cache_version))
-
-
-def layer_json(max_zoom: int) -> dict[str, Any]:
-    """Cesium terrain metadata (TileJSON 2.1 with quantized-mesh fields)."""
-    return {
-        "tilejson": "2.1.0",
-        "name": "copernicus-dem",
-        "attribution": ATTRIBUTION,
-        "format": "quantized-mesh-1.0",
-        "version": "1.0.0",
-        "scheme": "tms",
-        "projection": "EPSG:4326",
-        "tiles": ["{z}/{x}/{y}.terrain?v={version}"],
-        "bounds": [-180, -90, 180, 90],
-        "minzoom": 0,
-        "maxzoom": max_zoom,
-        "extensions": ["octvertexnormals"],
-        "available": layer_availability(max_zoom),
-    }
 
 
 def create_app(settings: Settings | None = None, service: TerrainService | None = None) -> FastAPI:
@@ -70,12 +51,16 @@ def create_app(settings: Settings | None = None, service: TerrainService | None 
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/terrain/layer.json")
-    def layer() -> dict[str, Any]:
-        return layer_json(settings.max_zoom)
+    @app.get("/voxels/meta.json")
+    def voxel_meta() -> dict[str, int | float]:
+        return {
+            "columns": VOXEL_TILE,
+            "max_zoom": settings.max_zoom,
+            "voxel_m_at_max_zoom": voxel_size_m(settings.max_zoom),
+        }
 
-    @app.get("/terrain/{z}/{x}/{y}.terrain")
-    def terrain_tile(z: Annotated[int, Path(ge=0)], x: int, y: int) -> Response:
+    @app.get("/voxels/{z}/{x}/{y}.bin")
+    def voxel_tile(z: Annotated[int, Path(ge=0)], x: int, y: int) -> Response:
         if z > settings.max_zoom:
             raise HTTPException(404, "beyond max zoom")
         try:
@@ -84,7 +69,7 @@ def create_app(settings: Settings | None = None, service: TerrainService | None 
             raise HTTPException(404, str(e)) from e
         return Response(
             service.tile(tile),
-            media_type="application/vnd.quantized-mesh",
+            media_type="application/octet-stream",
             headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=604800"},
         )
 

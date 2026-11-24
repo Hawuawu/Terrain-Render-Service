@@ -4,20 +4,18 @@ from __future__ import annotations
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-OSM_TILES = "https://tile.openstreetmap.org"
 CONTENT_SECURITY_POLICY = (
-    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; "
-    f"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {OSM_TILES}; connect-src 'self' {OSM_TILES}; "
-    "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 )
 SECURITY_HEADERS = {
     "content-security-policy": CONTENT_SECURITY_POLICY,
     "x-content-type-options": "nosniff",
     "x-frame-options": "DENY",
-    # OSM tile policy requires a Referer; send only the origin cross-site.
-    "referrer-policy": "strict-origin-when-cross-origin",
+    "referrer-policy": "no-referrer",
     "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
     "cross-origin-opener-policy": "same-origin",
+    "cross-origin-embedder-policy": "require-corp",
     "cross-origin-resource-policy": "same-origin",
 }
 

@@ -5,7 +5,15 @@ import pytest
 import rasterio
 from rasterio.transform import from_origin
 
-from terrain_render_service.dem import Cell, CopernicusSource, FlatSource, SourceLadder, cells_covering
+from terrain_render_service.dem import (
+    Cell,
+    CopernicusSource,
+    FlatSource,
+    SourceLadder,
+    TerrariumSource,
+    cells_covering,
+    mercator_pixels,
+)
 from terrain_render_service.tiling import GeoBounds
 
 
@@ -87,3 +95,49 @@ def test_missing_cells_fall_back_to_coarser_source(tmp_path: Path, local_source:
     fine.url = lambda cell: str(tmp_path / "fine" / cell.key(10) / f"{cell.key(10)}.tif")  # type: ignore[method-assign]
     assert fine.points([(11.5, 48.5), (20.5, 10.5)]) == [500, 0]
     assert fine.grid(GeoBounds(11.1, 48.1, 11.9, 48.9), 5).min() == 500
+
+
+class FakeTerrarium(TerrariumSource):
+    """Each pixel's height is its tile's x index times 1000; counts fetches."""
+
+    def __init__(self) -> None:
+        super().__init__("https://tiles.example", max_tiles=4, cache_size=4)
+        self.fetched: list[tuple[int, int, int]] = []
+
+    def fetch(self, z: int, x: int, y: int) -> np.ndarray:
+        self.fetched.append((z, x, y))
+        return np.full((256, 256), x * 1000, dtype=np.float32)
+
+
+def test_mercator_pixels_equator_and_clamp() -> None:
+    x, y = mercator_pixels(np.array([0.0, 180.0]), np.array([0.0, 89.9]), 0)
+    assert x.tolist() == [128, 256]
+    assert y[0] == pytest.approx(128)
+    assert y[1] == pytest.approx(0, abs=1e-6)
+
+
+def test_terrarium_grid_samples_tiles_and_caches() -> None:
+    src = FakeTerrarium()
+    bounds = GeoBounds(-180, -90, -1, 90)
+    assert src.zoom_for(bounds, 512) == 1
+    grid = src.grid(bounds, 512)
+    assert grid.shape == (512, 512)
+    assert not grid.any()
+    src.grid(bounds, 512)
+    assert sorted(src.fetched) == [(1, 0, 0), (1, 0, 1)]
+
+
+def test_terrarium_tile_budget_lowers_zoom() -> None:
+    assert FakeTerrarium().zoom_for(GeoBounds(-180, -90, 180, 90), 512) == 1
+    assert FakeTerrarium().zoom_for(GeoBounds(-180, -90, 180, 90), 1024) == 1
+
+
+def test_terrarium_points_use_zoom_10() -> None:
+    src = FakeTerrarium()
+    assert src.points([(0.1, 0.0)]) == [512_000.0]
+    assert src.fetched[0][0] == 10
+
+
+def test_terrarium_refuses_plain_http() -> None:
+    with pytest.raises(ValueError, match="https"):
+        TerrariumSource("http://tiles.example").fetch(0, 0, 0)

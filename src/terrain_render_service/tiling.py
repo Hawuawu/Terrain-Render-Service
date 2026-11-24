@@ -1,4 +1,4 @@
-"""Geographic (EPSG:4326, TMS) tile pyramid used by Cesium quantized-mesh terrain."""
+"""Geographic (EPSG:4326, TMS) tile pyramid of the voxel globe."""
 
 from __future__ import annotations
 
@@ -68,8 +68,3 @@ class TileId:
         west = -180.0 + self.x * size
         south = -90.0 + self.y * size
         return GeoBounds(west, south, west + size, south + size)
-
-
-def layer_availability(max_zoom: int) -> list[list[dict[str, int]]]:
-    """Cesium `layer.json` availability: every tile of every level up to `max_zoom`."""
-    return [[{"startX": 0, "startY": 0, "endX": 2 ** (z + 1) - 1, "endY": 2**z - 1}] for z in range(max_zoom + 1)]

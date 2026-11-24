@@ -9,11 +9,10 @@ import numpy as np
 
 from .cache import TileCache
 from .dem import SourceLadder
-from .mesh import TILE_SAMPLES, encode_tile
 from .preview import render_png
 from .tiling import GeoBounds, TileId
+from .voxels import EARTH_RADIUS_M, VOXEL_TILE, column_centres, encode_columns
 
-EARTH_RADIUS_M = 6_371_008.8
 MAX_AREA_DEGREES = 2.0
 MAX_PROFILE_SAMPLES = 500
 
@@ -36,7 +35,7 @@ def haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 
 class TerrainService:
-    """Generates cached terrain tiles and answers elevation queries."""
+    """Generates cached voxel column tiles and answers elevation queries."""
 
     def __init__(self, sources: SourceLadder, cache: TileCache) -> None:
         """Read heights from `sources`, keep generated tiles in `cache`."""
@@ -44,13 +43,12 @@ class TerrainService:
         self.cache = cache
 
     def tile(self, tile: TileId) -> bytes:
-        """Return the gzipped quantized-mesh tile, generated on first request."""
+        """Return the gzipped voxel column tile, generated on first request."""
         cached = self.cache.get(tile)
         if cached is not None:
             return cached
-        bounds = tile.bounds
-        heights = self.sources.for_zoom(tile.z).grid(bounds, TILE_SAMPLES)
-        data = encode_tile(heights, bounds, tile.z)
+        heights = self.sources.for_zoom(tile.z).grid(column_centres(tile), VOXEL_TILE)
+        data = encode_columns(heights)
         self.cache.put(tile, data)
         return data
 

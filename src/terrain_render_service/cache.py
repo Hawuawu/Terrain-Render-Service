@@ -10,7 +10,7 @@ from .tiling import TileId
 
 
 class TileCache:
-    """Stores tiles under `<root>/<version>/<z>/<x>/<y>.terrain`."""
+    """Stores tiles under `<root>/<version>/<z>/<x>/<y>.bin`."""
 
     def __init__(self, root: Path, version: str) -> None:
         """Use `root`; bump `version` to invalidate every cached tile."""
@@ -18,7 +18,7 @@ class TileCache:
 
     def path(self, tile: TileId) -> Path:
         """Where a tile lives on disk."""
-        return self.root / str(tile.z) / str(tile.x) / f"{tile.y}.terrain"
+        return self.root / str(tile.z) / str(tile.x) / f"{tile.y}.bin"
 
     def get(self, tile: TileId) -> bytes | None:
         """Return the cached tile, if any."""

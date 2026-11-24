@@ -1,8 +1,11 @@
-"""Elevation sources: Copernicus DEM cloud-optimised GeoTIFFs read on demand over HTTP."""
+"""Elevation sources: Copernicus DEM cloud-optimised GeoTIFFs and Terrarium overview tiles, read on demand over HTTP."""
 
 from __future__ import annotations
 
+import io
 import math
+import urllib.request
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -10,6 +13,7 @@ import numpy as np
 import numpy.typing as npt
 import rasterio
 from affine import Affine
+from PIL import Image
 from rasterio.errors import RasterioIOError
 from rasterio.warp import Resampling, reproject
 
@@ -40,7 +44,7 @@ class ElevationSource(Protocol):
 
 
 class FlatSource:
-    """Sea-level everywhere: used for the coarsest zoom levels, where relief is invisible."""
+    """Sea-level everywhere."""
 
     name = "ellipsoid"
 
@@ -154,11 +158,102 @@ class CopernicusSource:
             return [float(v[0]) for v in src.sample(lonlats)]
 
 
+MERCATOR_MAX_LAT = 85.05112878
+TERRARIUM_TILE = 256
+
+
+class TerrariumSource:
+    """Global Terrarium PNG tiles (AWS Terrain Tiles, Web Mercator): cheap whole-world heights for coarse zooms.
+
+    Copernicus has no global overview, so a continent-sized tile would need thousands of COG reads.
+    """
+
+    name = "terrarium"
+
+    def __init__(self, base_url: str, max_tiles: int = 16, cache_size: int = 256) -> None:
+        """Read `<base_url>/{z}/{x}/{y}.png`, using at most `max_tiles` PNGs per grid."""
+        self.base_url = base_url.rstrip("/")
+        self.max_tiles = max_tiles
+        self.cache_size = cache_size
+        self._tiles: OrderedDict[tuple[int, int, int], Grid] = OrderedDict()
+
+    def fetch(self, z: int, x: int, y: int) -> Grid:
+        """Decode one Terrarium tile into metres: `R * 256 + G + B / 256 - 32768`."""
+        url = f"{self.base_url}/{z}/{x}/{y}.png"
+        if not url.startswith("https://"):
+            msg = f"refusing non-https Terrarium URL {url}"
+            raise ValueError(msg)
+        with urllib.request.urlopen(url, timeout=30) as r:  # noqa: S310 - https only, checked above
+            rgb = np.asarray(Image.open(io.BytesIO(r.read())).convert("RGB"), dtype=np.float32)
+        heights: Grid = (rgb[..., 0] * 256 + rgb[..., 1] + rgb[..., 2] / 256 - 32768).astype(np.float32)
+        return heights
+
+    def _tile(self, key: tuple[int, int, int]) -> Grid:
+        tile = self._tiles.get(key)
+        if tile is None:
+            tile = self.fetch(*key)
+            self._tiles[key] = tile
+            if len(self._tiles) > self.cache_size:
+                self._tiles.popitem(last=False)
+        self._tiles.move_to_end(key)
+        return tile
+
+    def zoom_for(self, bounds: GeoBounds, size: int) -> int:
+        """Deepest Mercator zoom whose tiles covering `bounds` stay within `max_tiles`, capped at the grid's detail."""
+        detail = math.ceil(math.log2(max(size * 360 / bounds.width / TERRARIUM_TILE, 1)))
+        for z in range(min(detail, 15), -1, -1):
+            px, py = mercator_pixels(np.array([bounds.west, bounds.east]), np.array([bounds.north, bounds.south]), z)
+            tx = np.clip(px // TERRARIUM_TILE, 0, (1 << z) - 1)
+            ty = np.clip(py // TERRARIUM_TILE, 0, (1 << z) - 1)
+            nx, ny = int(tx[1] - tx[0]) + 1, int(ty[1] - ty[0]) + 1
+            if nx * ny <= self.max_tiles:
+                return z
+        return 0
+
+    def sample(self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64], z: int) -> Grid:
+        """Nearest-pixel heights at the given points; latitudes beyond Mercator's limit use the edge row."""
+        px, py = mercator_pixels(lons, lats, z)
+        limit = TERRARIUM_TILE * (1 << z) - 1
+        px = np.clip(px.astype(np.int64), 0, limit)
+        py = np.clip(py.astype(np.int64), 0, limit)
+        out = np.empty(px.shape, dtype=np.float32)
+        tx, ty = px // TERRARIUM_TILE, py // TERRARIUM_TILE
+        for key in {(int(a), int(b)) for a, b in zip(tx.ravel(), ty.ravel(), strict=True)}:
+            mask = (tx == key[0]) & (ty == key[1])
+            tile = self._tile((z, *key))
+            out[mask] = tile[py[mask] % TERRARIUM_TILE, px[mask] % TERRARIUM_TILE]
+        return out
+
+    def grid(self, bounds: GeoBounds, size: int) -> Grid:
+        """Return `size` x `size` samples, edges inclusive, row 0 at the north edge."""
+        lons, lats = np.meshgrid(
+            np.linspace(bounds.west, bounds.east, size), np.linspace(bounds.north, bounds.south, size)
+        )
+        return self.sample(lons, lats, self.zoom_for(bounds, size))
+
+    def points(self, lonlats: list[tuple[float, float]]) -> list[float]:
+        """Return the height at each `(lon, lat)` from zoom-10 tiles (about 150 m)."""
+        lons = np.array([p[0] for p in lonlats], dtype=np.float64)
+        lats = np.array([p[1] for p in lonlats], dtype=np.float64)
+        return [float(v) for v in self.sample(lons, lats, 10)]
+
+
+def mercator_pixels(
+    lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64], z: int
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Global Web Mercator pixel coordinates at zoom `z` (256-pixel tiles)."""
+    scale = TERRARIUM_TILE * (1 << z)
+    lat = np.radians(np.clip(lats, -MERCATOR_MAX_LAT, MERCATOR_MAX_LAT))
+    x = (lons + 180) / 360 * scale
+    y = (1 - np.log(np.tan(lat) + 1 / np.cos(lat)) / math.pi) / 2 * scale
+    return x, y
+
+
 @dataclass(frozen=True, slots=True)
 class SourceLadder:
     """Pick the cheapest source that still has enough detail for a zoom level."""
 
-    flat: ElevationSource
+    overview: ElevationSource
     coarse: ElevationSource
     fine: ElevationSource
     coarse_from_zoom: int
@@ -170,7 +265,7 @@ class SourceLadder:
             return self.fine
         if z >= self.coarse_from_zoom:
             return self.coarse
-        return self.flat
+        return self.overview
 
     def for_span(self, degrees: float) -> ElevationSource:
         """Source for an area query spanning `degrees`: fine below 0.5 degrees, else coarse."""

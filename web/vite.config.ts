@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  define: { CESIUM_BASE_URL: JSON.stringify('/cesium/') },
-  build: { chunkSizeWarningLimit: 5000 },
+  build: { chunkSizeWarningLimit: 700 },
   server: {
-    proxy: { '/terrain': 'http://localhost:8000', '/api': 'http://localhost:8000' },
+    proxy: { '/voxels': 'http://localhost:8000', '/api': 'http://localhost:8000' },
   },
 });

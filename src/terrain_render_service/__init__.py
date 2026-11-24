@@ -1,1 +1,1 @@
-"""Terrain Render Service: Cesium terrain tiles and MCP tools over the Copernicus DEM."""
+"""Terrain Render Service: Voxel globe tiles and MCP tools over the Copernicus DEM."""

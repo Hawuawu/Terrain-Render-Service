@@ -22,26 +22,28 @@ def test_health_and_index(client: TestClient) -> None:
     assert client.get("/healthz").json() == {"status": "ok"}
     index = client.get("/")
     assert "globe" in index.text
-    assert "frame-ancestors 'none'" in index.headers["content-security-policy"]
+    csp = index.headers["content-security-policy"]
+    assert "frame-ancestors 'none'" in csp
+    assert "unsafe" not in csp
     assert index.headers["x-content-type-options"] == "nosniff"
 
 
-def test_layer_json(client: TestClient) -> None:
-    layer = client.get("/terrain/layer.json").json()
-    assert layer["format"] == "quantized-mesh-1.0"
-    assert layer["maxzoom"] == 6
-    assert len(layer["available"]) == 7
+def test_voxel_meta(client: TestClient) -> None:
+    meta = client.get("/voxels/meta.json").json()
+    assert (meta["columns"], meta["max_zoom"]) == (64, 6)
 
 
-def test_terrain_tile(client: TestClient) -> None:
-    r = client.get("/terrain/4/17/8.terrain")
+def test_voxel_tile(client: TestClient) -> None:
+    r = client.get("/voxels/4/17/8.bin")
     assert r.status_code == 200
-    assert r.headers["content-type"] == "application/vnd.quantized-mesh"
+    assert r.headers["content-type"] == "application/octet-stream"
+    assert r.headers["content-encoding"] == "gzip"
     assert "max-age" in r.headers["cache-control"]
+    assert len(r.content) == 64 * 64 * 2
 
 
-@pytest.mark.parametrize("path", ["/terrain/7/0/0.terrain", "/terrain/0/5/0.terrain"])
-def test_terrain_tile_not_found(client: TestClient, path: str) -> None:
+@pytest.mark.parametrize("path", ["/voxels/7/0/0.bin", "/voxels/0/5/0.bin"])
+def test_voxel_tile_not_found(client: TestClient, path: str) -> None:
     assert client.get(path).status_code == 404
 
 
