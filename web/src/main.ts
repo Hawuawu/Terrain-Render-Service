@@ -283,10 +283,16 @@ function arrowInput(): [number, number] {
   return [x, y];
 }
 
+let settling = false;
 function walk(dt: number): void {
   const [ix, iy] = arrowInput();
   const a = voxels.area;
-  if ((!ix && !iy) || !a) return;
+  if (!a) return;
+  if (!ix && !iy) {
+    if (settling) settling = Math.abs(followGround(orbit.target.clone(), a.cell, dt)) > 1;
+    return;
+  }
+  settling = true;
   const f = orbit.target.clone().sub(areaCamera.position).setY(0).normalize();
   const right = new Vector3(-f.z, 0, f.x);
   const speed = areaCamera.position.distanceTo(orbit.target) * 0.6;
@@ -301,10 +307,16 @@ function walk(dt: number): void {
     }
     return;
   }
-  const ground = levelOf(voxels.heightAt(next.x, next.z) ?? 0, Number(exaggeration.value), a.cell) * a.cell;
+  followGround(next, a.cell, dt);
+}
+
+/** Move the orbit target (and camera with it) to `next`, easing its height towards the ground; returns the remaining gap. */
+function followGround(next: Vector3, cell: number, dt: number): number {
+  const ground = levelOf(voxels.heightAt(next.x, next.z) ?? 0, Number(exaggeration.value), cell) * cell;
   next.y += (ground - next.y) * Math.min(1, dt * 3);
   areaCamera.position.add(next.clone().sub(orbit.target));
   orbit.target.copy(next);
+  return ground - next.y;
 }
 
 exaggeration.addEventListener('change', () => {
