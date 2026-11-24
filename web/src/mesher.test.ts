@@ -1,85 +1,71 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { build } from './mesher.ts';
-import { COLUMNS as N, EARTH_RADIUS, MAX_MERGE, geoToXyz, tileBounds, voxelSize, xyzToGeo } from './shared.ts';
+import { buildChunk, quantise } from './mesher.ts';
+import { CHUNK, levelOf, mercatorLat, mercatorTile } from './shared.ts';
 
 type Vec = [number, number, number];
-const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const sub = (a: Vec, b: Vec): Vec => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const cross = (a: Vec, b: Vec): Vec => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const unit = (a: Vec): Vec => {
-  const l = Math.hypot(...a);
-  return [a[0] / l, a[1] / l, a[2] / l];
-};
+const N = CHUNK;
+const CELL = 40;
 
-function triangles(heights: Int16Array, z = 10, x = 1100, y = 770) {
-  const m = build({ id: 1, z, x, y, exaggeration: 1 }, heights);
-  const p = (k: number): Vec => [
-    m.positions[3 * k] + m.center[0],
-    m.positions[3 * k + 1] + m.center[1],
-    m.positions[3 * k + 2] + m.center[2],
-  ];
-  const out: { centroid: Vec; normal: Vec; top: boolean }[] = [];
+function triangles(heights: Int16Array, n = N) {
+  const m = buildChunk({ heights, n, cell: CELL }, 1, 0, 0);
+  const p = (k: number): Vec => [m.positions[3 * k], m.positions[3 * k + 1], m.positions[3 * k + 2]];
+  const out: { centroid: Vec; normal: Vec }[] = [];
   for (let t = 0; t < m.indices.length; t += 3) {
     const [a, b, c] = [p(m.indices[t]), p(m.indices[t + 1]), p(m.indices[t + 2])];
-    const centroid: Vec = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
-    const normal = unit(cross(sub(b, a), sub(c, a)));
-    out.push({ centroid, normal, top: dot(normal, unit(centroid)) > 0.9 });
+    const u: Vec = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const v: Vec = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const cr: Vec = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const l = Math.hypot(...cr);
+    out.push({ centroid: [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3], normal: [cr[0] / l, cr[1] / l, cr[2] / l] });
   }
   return { m, tris: out };
 }
 
-test('flat tile merges top faces up to MAX_MERGE and faces outwards', () => {
-  const { tris } = triangles(new Int16Array(N * N));
-  const tops = tris.filter((t) => t.top);
-  assert.equal(tops.length, 2 * (N / MAX_MERGE) ** 2);
-  for (const t of tops) assert.ok(dot(t.normal, unit(t.centroid)) > 0.99);
+const ups = (tris: { normal: Vec }[]) => tris.filter((t) => t.normal[1] > 0.99);
+
+test('a flat land chunk merges into 32-column top faces plus outer walls', () => {
+  const { tris } = triangles(new Int16Array(N * N).fill(400));
+  assert.equal(ups(tris).length, 2 * (N / 32) ** 2);
+  assert.ok(tris.every((t) => t.normal[1] > 0.99 || Math.abs(t.normal[1]) < 1e-6));
 });
 
-test('walls of a raised column face away from it, tile skirts face away from the tile', () => {
-  const heights = new Int16Array(N * N);
-  heights[10 * N + 20] = 1000;
-  const z = 10;
-  const { m, tris } = triangles(heights, z);
-  const b = tileBounds(z, 1100, 770);
-  const cell = (b.east - b.west) / N;
-  const column = geoToXyz(b.west + 20.5 * cell, b.north - 10.5 * cell, EARTH_RADIUS);
-  const near = voxelSize(z) * 2;
-  const walls = tris.filter((t) => !t.top);
-  const columnWalls = walls.filter((t) => Math.hypot(...sub(t.centroid, column)) < near * 2 && Math.hypot(...t.centroid) > EARTH_RADIUS);
-  assert.equal(columnWalls.length, 8);
-  for (const t of columnWalls) assert.ok(dot(t.normal, sub(t.centroid, column)) > 0);
-  const onEdge = (t: { centroid: Vec }) => {
-    const g = xyzToGeo(...t.centroid);
-    return Math.min(g.lon - b.west, b.east - g.lon, g.lat - b.south, b.north - g.lat) < cell / 4;
-  };
-  const skirts = walls.filter(onEdge);
-  assert.equal(skirts.length, 2 * 4 * (N / MAX_MERGE));
-  for (const t of skirts) assert.ok(dot(t.normal, sub(t.centroid, m.center)) > 0);
-  // The column breaks the 8x8 merge grid around it; T-junction seams there sit one voxel below the surface.
-  const seams = walls.filter((t) => !columnWalls.includes(t) && !onEdge(t));
-  assert.ok(seams.length > 0);
-  for (const t of seams) assert.ok(Math.hypot(...t.centroid) < EARTH_RADIUS - 0.45 * voxelSize(z));
-});
-
-test('levels quantise exaggerated height into cubes and flatten the sea', () => {
-  const heights = new Int16Array(N * N).fill(-3000);
-  heights[0] = Math.round(voxelSize(10) * 2.4);
-  const { m } = triangles(heights);
-  let maxR = 0;
-  let minR = Infinity;
-  for (let k = 0; k < m.positions.length; k += 3) {
-    const r = Math.hypot(m.positions[k] + m.center[0], m.positions[k + 1] + m.center[1], m.positions[k + 2] + m.center[2]);
-    maxR = Math.max(maxR, r);
-    minR = Math.min(minR, r);
+test('a raised column gets four outward walls of its own height', () => {
+  const h = new Int16Array(N * N).fill(0);
+  h[10 * N + 10] = 3 * CELL;
+  const { tris } = triangles(h);
+  const walls = tris.filter((t) => Math.abs(t.normal[1]) < 1e-6 && t.centroid[1] > 0);
+  assert.equal(walls.length, 8);
+  const cx = (10.5 - N / 2) * CELL;
+  const cz = (10.5 - N / 2) * CELL;
+  for (const w of walls) {
+    const out = (w.centroid[0] - cx) * w.normal[0] + (w.centroid[2] - cz) * w.normal[2];
+    assert.ok(out > 0, 'wall faces away from the column');
+    assert.ok(w.centroid[1] <= 3 * CELL);
   }
-  assert.ok(Math.abs(maxR - (EARTH_RADIUS + 2 * voxelSize(10))) < 1);
-  assert.ok(Math.abs(minR - (EARTH_RADIUS - voxelSize(10))) < 1);
 });
 
-test('flat merges stop at the coastline', () => {
-  const heights = new Int16Array(N * N);
-  for (let j = 0; j < N; j++) for (let i = 0; i < 4; i++) heights[j * N + i] = 10;
-  const tops = triangles(heights).tris.filter((t) => t.top);
-  assert.equal(tops.length, 2 * (N / MAX_MERGE) * (1 + Math.ceil((N - 4) / MAX_MERGE)));
+test('walls between chunks use the neighbouring chunk, so chunk borders inside the area have none', () => {
+  const n = 2 * N;
+  const flat = new Int16Array(n * n).fill(200);
+  const { tris } = triangles(flat, n);
+  assert.ok(!tris.some((w) => w.normal[0] > 0.99 || w.normal[2] > 0.99), 'no east or south walls inside the area');
+  assert.ok(tris.some((w) => w.normal[0] < -0.99) && tris.some((w) => w.normal[2] < -0.99));
+});
+
+test('sea flattens to level 0 and coastlines stop merges', () => {
+  assert.equal(levelOf(-300, 2, CELL), 0);
+  assert.equal(levelOf(70, 1, CELL), 2);
+  const h = new Int16Array(N * N).fill(-5);
+  for (let j = 0; j < N; j++) h[j * N] = 1;
+  const { levels, bands } = quantise({ heights: h, n: N, cell: CELL }, 1);
+  assert.equal(levels[0], levels[1]);
+  assert.notEqual(bands[0], bands[1]);
+  assert.ok(ups(triangles(h).tris).length > 2 * (N / 32) ** 2);
+});
+
+test('mercator helpers round-trip', () => {
+  const t = mercatorTile(5, 6.86, 45.83);
+  assert.ok(Math.abs(mercatorLat(5, t.y) - 45.83) < 1e-9);
+  assert.equal(mercatorLat(0, 0.5), 0);
 });

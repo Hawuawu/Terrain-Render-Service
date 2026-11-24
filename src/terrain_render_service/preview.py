@@ -12,7 +12,9 @@ from .dem import Grid
 
 # (elevation m, RGB) stops from sea level to high mountains.
 TINT_STOPS = (
-    (-50.0, (40, 90, 150)),
+    (-6000.0, (12, 34, 80)),
+    (-200.0, (40, 90, 150)),
+    (-1.0, (70, 125, 170)),
     (0.0, (70, 130, 90)),
     (500.0, (150, 170, 100)),
     (1500.0, (180, 140, 90)),
@@ -40,9 +42,10 @@ def tint(heights: Grid) -> npt.NDArray[np.float64]:
     return rgb
 
 
-def render_png(heights: Grid, cell_m: float) -> bytes:
-    """Combine tint and hillshade into a PNG."""
-    shade = 0.35 + 0.65 * hillshade(heights, cell_m)
+def render_png(heights: Grid, cell_m: float, shade_exaggeration: float = 1.0) -> bytes:
+    """Combine tint and hillshade (of land only, slopes scaled by `shade_exaggeration`) into a PNG."""
+    land = heights.clip(min=0) * shade_exaggeration
+    shade = 0.35 + 0.65 * hillshade(land.astype(heights.dtype), cell_m)
     rgb = np.clip(tint(heights) * shade[..., None], 0, 255).astype(np.uint8)
     buffer = io.BytesIO()
     Image.fromarray(rgb, "RGB").save(buffer, "PNG", optimize=True)

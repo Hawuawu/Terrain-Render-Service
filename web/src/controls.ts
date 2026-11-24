@@ -2,7 +2,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { EARTH_RADIUS } from './shared.ts';
 
 const DEG = Math.PI / 180;
-const MIN_ALT = 40;
+const MIN_ALT = 15_000;
 const MAX_ALT = 40_000_000;
 
 export interface View {
@@ -13,12 +13,12 @@ export interface View {
   heading: number;
 }
 
-/** Map-style globe camera: drag pans, wheel zooms towards the ground, right-drag/shift-drag tilts and turns. */
+/** Map-style globe camera for the relief view: drag pans, wheel zooms towards the ground, right-drag/shift-drag tilts and turns. */
 export class GlobeControls {
   view: View;
   changed = true;
-  /** Height of the rendered terrain under the view centre, so the camera orbits the surface, not sea level. */
-  ground = 0;
+  /** Off while the voxel view owns the pointer. */
+  enabled = true;
 
   constructor(
     readonly element: HTMLElement,
@@ -29,11 +29,13 @@ export class GlobeControls {
     let rotate = false;
     element.addEventListener('contextmenu', (e) => e.preventDefault());
     element.addEventListener('pointerdown', (e) => {
+      if (!this.enabled) return;
       last = { x: e.clientX, y: e.clientY };
       rotate = e.button === 2 || e.shiftKey;
       element.setPointerCapture(e.pointerId);
     });
     element.addEventListener('pointerup', (e) => {
+      if (!last) return;
       last = null;
       element.releasePointerCapture(e.pointerId);
     });
@@ -48,6 +50,7 @@ export class GlobeControls {
     element.addEventListener(
       'wheel',
       (e) => {
+        if (!this.enabled) return;
         e.preventDefault();
         this.zoom(Math.exp(e.deltaY * 0.0015));
       },
@@ -89,7 +92,7 @@ export class GlobeControls {
     const h = heading * DEG;
     const t = tilt * DEG;
     const forward = north.clone().multiplyScalar(Math.cos(h)).addScaledVector(east, Math.sin(h));
-    const target = up.clone().multiplyScalar(EARTH_RADIUS + this.ground);
+    const target = up.clone().multiplyScalar(EARTH_RADIUS);
     camera.position
       .copy(target)
       .addScaledVector(up, alt * Math.cos(t))

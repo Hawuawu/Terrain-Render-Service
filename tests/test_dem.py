@@ -76,10 +76,9 @@ def test_url_points_at_vsicurl() -> None:
     )
 
 
-def test_ladder_picks_by_zoom_and_span() -> None:
-    flat, coarse, fine = FlatSource(), FlatSource(), FlatSource()
-    ladder = SourceLadder(flat, coarse, fine, coarse_from_zoom=5, fine_from_zoom=9)
-    assert [ladder.for_zoom(z) for z in (0, 5, 9)] == [flat, coarse, fine]
+def test_ladder_picks_by_span() -> None:
+    coarse, fine = FlatSource(), FlatSource()
+    ladder = SourceLadder(coarse, fine)
     assert ladder.for_span(0.2) is fine
     assert ladder.for_span(1.5) is coarse
 
@@ -125,6 +124,15 @@ def test_terrarium_grid_samples_tiles_and_caches() -> None:
     assert not grid.any()
     src.grid(bounds, 512)
     assert sorted(src.fetched) == [(1, 0, 0), (1, 0, 1)]
+
+
+def test_terrarium_prefetches_each_missing_tile_once() -> None:
+    src = FakeTerrarium()
+    src.tile(2, 0, 0)
+    src.prefetch([(2, 0, 0), (2, 1, 0), (2, 1, 1)])
+    assert sorted(src.fetched) == [(2, 0, 0), (2, 1, 0), (2, 1, 1)]
+    assert src.tile(2, 1, 1).shape == (256, 256)
+    assert len(src.fetched) == 3
 
 
 def test_terrarium_tile_budget_lowers_zoom() -> None:

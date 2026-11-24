@@ -5,30 +5,29 @@ import pytest
 
 from terrain_render_service.service import TerrainService, haversine_m
 from terrain_render_service.tiling import GeoBounds, TileId
-from terrain_render_service.voxels import VOXEL_TILE
+from terrain_render_service.voxels import AREA_COLUMNS, Area
 
 from .conftest import SlopeSource
 
 
-def columns(tile: bytes) -> np.ndarray:
-    return np.frombuffer(gzip.decompress(tile), dtype="<i2").reshape(VOXEL_TILE, VOXEL_TILE)
+def test_area_holds_source_heights_at_column_centres(service: TerrainService) -> None:
+    area = Area.around(45.832, 6.865)
+    cols = np.frombuffer(gzip.decompress(service.area(area)), dtype="<i2").reshape(AREA_COLUMNS, AREA_COLUMNS)
+    b = area.column_centres
+    assert cols[0, 0] == round(b.west * 1000)
+    assert cols[-1, -1] == round(b.east * 1000)
 
 
-def test_tile_holds_source_heights_at_column_centres(service: TerrainService) -> None:
-    cols = columns(service.tile(TileId(5, 32, 16)))
-    bounds, cell = TileId(5, 32, 16).bounds, TileId(5, 32, 16).size_degrees / VOXEL_TILE
-    assert cols[0, 0] == pytest.approx((bounds.west + cell / 2) * 1000, abs=1)
-    assert cols[-1, -1] == pytest.approx((bounds.east - cell / 2) * 1000, abs=1)
-    assert (cols[:, 1:] > cols[:, :-1]).all()
+def test_area_is_cached(service: TerrainService, slope: SlopeSource) -> None:
+    first = service.area(Area.around(10, 10))
+    assert service.area(Area.around(10.004, 9.996)) == first
+    assert slope.calls == 1
 
 
-def test_overview_zooms_use_the_overview_source(service: TerrainService) -> None:
-    assert not columns(service.tile(TileId(1, 0, 0))).any()
-
-
-def test_tiles_are_cached(service: TerrainService, slope: SlopeSource) -> None:
-    first = service.tile(TileId(5, 40, 20))
-    assert service.tile(TileId(5, 40, 20)) == first
+def test_relief_is_cached_png(service: TerrainService, slope: SlopeSource) -> None:
+    png = service.relief(TileId(3, 4, 2))
+    assert png.startswith(b"\x89PNG")
+    assert service.relief(TileId(3, 4, 2)) == png
     assert slope.calls == 1
 
 

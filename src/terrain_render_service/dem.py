@@ -6,6 +6,7 @@ import io
 import math
 import urllib.request
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -188,13 +189,28 @@ class TerrariumSource:
         heights: Grid = (rgb[..., 0] * 256 + rgb[..., 1] + rgb[..., 2] / 256 - 32768).astype(np.float32)
         return heights
 
+    def prefetch(self, keys: list[tuple[int, int, int]]) -> None:
+        """Download the uncached tiles among `keys` in parallel."""
+        missing = [k for k in keys if k not in self._tiles]
+        if len(missing) > 1:
+            with ThreadPoolExecutor(max_workers=min(len(missing), 8)) as pool:
+                for key, tile in zip(missing, pool.map(lambda k: self.fetch(*k), missing), strict=True):
+                    self._store(key, tile)
+
+    def _store(self, key: tuple[int, int, int], tile: Grid) -> None:
+        self._tiles[key] = tile
+        if len(self._tiles) > self.cache_size:
+            self._tiles.popitem(last=False)
+
+    def tile(self, z: int, x: int, y: int) -> Grid:
+        """One decoded 256 x 256 tile, cached in memory."""
+        return self._tile((z, x, y))
+
     def _tile(self, key: tuple[int, int, int]) -> Grid:
         tile = self._tiles.get(key)
         if tile is None:
             tile = self.fetch(*key)
-            self._tiles[key] = tile
-            if len(self._tiles) > self.cache_size:
-                self._tiles.popitem(last=False)
+            self._store(key, tile)
         self._tiles.move_to_end(key)
         return tile
 
@@ -218,7 +234,9 @@ class TerrariumSource:
         py = np.clip(py.astype(np.int64), 0, limit)
         out = np.empty(px.shape, dtype=np.float32)
         tx, ty = px // TERRARIUM_TILE, py // TERRARIUM_TILE
-        for key in {(int(a), int(b)) for a, b in zip(tx.ravel(), ty.ravel(), strict=True)}:
+        keys = {(int(a), int(b)) for a, b in zip(tx.ravel(), ty.ravel(), strict=True)}
+        self.prefetch([(z, *key) for key in keys])
+        for key in keys:
             mask = (tx == key[0]) & (ty == key[1])
             tile = self._tile((z, *key))
             out[mask] = tile[py[mask] % TERRARIUM_TILE, px[mask] % TERRARIUM_TILE]
@@ -251,21 +269,10 @@ def mercator_pixels(
 
 @dataclass(frozen=True, slots=True)
 class SourceLadder:
-    """Pick the cheapest source that still has enough detail for a zoom level."""
+    """Copernicus sources for REST/MCP queries: GLO-30 for points and small areas, GLO-90 for large ones."""
 
-    overview: ElevationSource
     coarse: ElevationSource
     fine: ElevationSource
-    coarse_from_zoom: int
-    fine_from_zoom: int
-
-    def for_zoom(self, z: int) -> ElevationSource:
-        """Source for a tile at level `z`."""
-        if z >= self.fine_from_zoom:
-            return self.fine
-        if z >= self.coarse_from_zoom:
-            return self.coarse
-        return self.overview
 
     def for_span(self, degrees: float) -> ElevationSource:
         """Source for an area query spanning `degrees`: fine below 0.5 degrees, else coarse."""

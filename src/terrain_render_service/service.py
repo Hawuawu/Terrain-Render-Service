@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 
 from .cache import TileCache
-from .dem import SourceLadder
+from .dem import Grid, SourceLadder
 from .preview import render_png
+from .relief import relief_png
 from .tiling import GeoBounds, TileId
-from .voxels import EARTH_RADIUS_M, VOXEL_TILE, column_centres, encode_columns
+from .voxels import AREA_COLUMNS, EARTH_RADIUS_M, Area, encode_columns
 
 MAX_AREA_DEGREES = 2.0
 MAX_PROFILE_SAMPLES = 500
@@ -27,6 +29,18 @@ class AreaStats:
     source: str
 
 
+class OverviewSource(Protocol):
+    """Fast global heights (Terrarium) behind the relief globe and the voxel areas."""
+
+    def tile(self, z: int, x: int, y: int) -> Grid:
+        """One 256 x 256 Web Mercator tile of heights."""
+        ...
+
+    def grid(self, bounds: GeoBounds, size: int) -> Grid:
+        """Return `size` x `size` samples, edges inclusive, row 0 at the north edge."""
+        ...
+
+
 def haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
     """Great-circle distance between two `(lon, lat)` points."""
     lon1, lat1, lon2, lat2 = map(math.radians, (*a, *b))
@@ -35,22 +49,30 @@ def haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 
 class TerrainService:
-    """Generates cached voxel column tiles and answers elevation queries."""
+    """Generates cached relief tiles and voxel areas, and answers elevation queries."""
 
-    def __init__(self, sources: SourceLadder, cache: TileCache) -> None:
-        """Read heights from `sources`, keep generated tiles in `cache`."""
+    def __init__(self, sources: SourceLadder, overview: OverviewSource, cache: TileCache) -> None:
+        """Answer queries from Copernicus `sources`, draw the globe from `overview`, keep results in `cache`."""
         self.sources = sources
+        self.overview = overview
         self.cache = cache
 
-    def tile(self, tile: TileId) -> bytes:
-        """Return the gzipped voxel column tile, generated on first request."""
-        cached = self.cache.get(tile)
-        if cached is not None:
-            return cached
-        heights = self.sources.for_zoom(tile.z).grid(column_centres(tile), VOXEL_TILE)
-        data = encode_columns(heights)
-        self.cache.put(tile, data)
-        return data
+    def relief(self, tile: TileId) -> bytes:
+        """Return the relief PNG of a Web Mercator tile, rendered on first request."""
+        key = f"relief/{tile.z}/{tile.x}/{tile.y}.png"
+        cached = self.cache.get(key)
+        if cached is None:
+            cached = relief_png(tile, self.overview.tile(tile.z, tile.x, tile.y))
+            self.cache.put(key, cached)
+        return cached
+
+    def area(self, area: Area) -> bytes:
+        """Return the gzipped column heights of a voxel area, sampled on first request."""
+        cached = self.cache.get(area.key)
+        if cached is None:
+            cached = encode_columns(self.overview.grid(area.column_centres, AREA_COLUMNS))
+            self.cache.put(area.key, cached)
+        return cached
 
     def elevation(self, lon: float, lat: float) -> float:
         """Height in metres at one point (GLO-30)."""

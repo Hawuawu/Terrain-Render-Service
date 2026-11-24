@@ -15,7 +15,7 @@ def client(tmp_path: Path, service: TerrainService) -> TestClient:
     web = tmp_path / "web"
     web.mkdir()
     (web / "index.html").write_text("<title>globe</title>")
-    return TestClient(create_app(Settings(web_dir=web, max_zoom=6), service))
+    return TestClient(create_app(Settings(web_dir=web, relief_max_zoom=6), service))
 
 
 def test_health_and_index(client: TestClient) -> None:
@@ -28,23 +28,31 @@ def test_health_and_index(client: TestClient) -> None:
     assert index.headers["x-content-type-options"] == "nosniff"
 
 
-def test_voxel_meta(client: TestClient) -> None:
-    meta = client.get("/voxels/meta.json").json()
-    assert (meta["columns"], meta["max_zoom"]) == (64, 6)
+def test_relief_meta(client: TestClient) -> None:
+    meta = client.get("/relief/meta.json").json()
+    assert meta == {"max_zoom": 6, "area_size_m": 20_000, "area_columns": 512}
 
 
-def test_voxel_tile(client: TestClient) -> None:
-    r = client.get("/voxels/4/17/8.bin")
+def test_relief_tile(client: TestClient) -> None:
+    r = client.get("/relief/3/4/2.png")
     assert r.status_code == 200
-    assert r.headers["content-type"] == "application/octet-stream"
-    assert r.headers["content-encoding"] == "gzip"
+    assert r.headers["content-type"] == "image/png"
     assert "max-age" in r.headers["cache-control"]
-    assert len(r.content) == 64 * 64 * 2
 
 
-@pytest.mark.parametrize("path", ["/voxels/7/0/0.bin", "/voxels/0/5/0.bin"])
-def test_voxel_tile_not_found(client: TestClient, path: str) -> None:
+@pytest.mark.parametrize("path", ["/relief/7/0/0.png", "/relief/0/1/0.png", "/voxels/4/17/8.bin"])
+def test_relief_tile_not_found(client: TestClient, path: str) -> None:
     assert client.get(path).status_code == 404
+
+
+def test_voxel_area(client: TestClient) -> None:
+    r = client.get("/voxels/area.bin", params={"lat": 45.8326, "lon": 6.8652})
+    assert r.status_code == 200
+    assert r.headers["content-encoding"] == "gzip"
+    assert (r.headers["x-area-lat"], r.headers["x-area-lon"], r.headers["x-area-columns"]) == ("45.83", "6.87", "512")
+    assert float(r.headers["x-area-cell-m"]) == pytest.approx(39.0625)
+    assert len(r.content) == 512 * 512 * 2
+    assert client.get("/voxels/area.bin", params={"lat": 95, "lon": 0}).status_code == 422
 
 
 def test_elevation_endpoints(client: TestClient) -> None:

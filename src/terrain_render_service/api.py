@@ -1,4 +1,4 @@
-"""FastAPI application: voxel column tiles, elevation API, MCP endpoint and the voxel globe UI."""
+"""FastAPI application: relief tiles, voxel areas, elevation API, MCP endpoint and the web UI."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .mcp_server import build_mcp
 from .service import TerrainService
 from .settings import Settings
 from .tiling import TileId
-from .voxels import VOXEL_TILE, voxel_size_m
+from .voxels import AREA_COLUMNS, AREA_SIZE_M, Area
 
 Lat = Annotated[float, Query(ge=-90, le=90)]
 Lon = Annotated[float, Query(ge=-180, le=180)]
@@ -25,13 +25,11 @@ def build_service(settings: Settings) -> TerrainService:
     """Wire the elevation sources and tile cache from settings."""
     coarse = CopernicusSource(settings.glo90_url, 30, "copernicus-glo90")
     ladder = SourceLadder(
-        overview=TerrariumSource(settings.terrarium_url),
-        coarse=coarse,
-        fine=CopernicusSource(settings.glo30_url, 10, "copernicus-glo30", fallback=coarse),
-        coarse_from_zoom=settings.coarse_from_zoom,
-        fine_from_zoom=settings.fine_from_zoom,
+        coarse=coarse, fine=CopernicusSource(settings.glo30_url, 10, "copernicus-glo30", fallback=coarse)
     )
-    return TerrainService(ladder, TileCache(settings.cache_dir, settings.cache_version))
+    return TerrainService(
+        ladder, TerrariumSource(settings.terrarium_url), TileCache(settings.cache_dir, settings.cache_version)
+    )
 
 
 def create_app(settings: Settings | None = None, service: TerrainService | None = None) -> FastAPI:
@@ -51,27 +49,34 @@ def create_app(settings: Settings | None = None, service: TerrainService | None 
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/voxels/meta.json")
-    def voxel_meta() -> dict[str, int | float]:
-        return {
-            "columns": VOXEL_TILE,
-            "max_zoom": settings.max_zoom,
-            "voxel_m_at_max_zoom": voxel_size_m(settings.max_zoom),
-        }
+    cached = {"Cache-Control": "public, max-age=604800"}
 
-    @app.get("/voxels/{z}/{x}/{y}.bin")
-    def voxel_tile(z: Annotated[int, Path(ge=0)], x: int, y: int) -> Response:
-        if z > settings.max_zoom:
+    @app.get("/relief/meta.json")
+    def relief_meta() -> dict[str, int | float]:
+        return {"max_zoom": settings.relief_max_zoom, "area_size_m": AREA_SIZE_M, "area_columns": AREA_COLUMNS}
+
+    @app.get("/relief/{z}/{x}/{y}.png")
+    def relief_tile(z: Annotated[int, Path(ge=0)], x: int, y: int) -> Response:
+        if z > settings.relief_max_zoom:
             raise HTTPException(404, "beyond max zoom")
         try:
             tile = TileId(z, x, y)
         except ValueError as e:
             raise HTTPException(404, str(e)) from e
-        return Response(
-            service.tile(tile),
-            media_type="application/octet-stream",
-            headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=604800"},
-        )
+        return Response(service.relief(tile), media_type="image/png", headers=cached)
+
+    @app.get("/voxels/area.bin")
+    def voxel_area(lat: Lat, lon: Lon) -> Response:
+        area = Area.around(lat, lon)
+        headers = {
+            **cached,
+            "Content-Encoding": "gzip",
+            "X-Area-Lat": str(area.lat),
+            "X-Area-Lon": str(area.lon),
+            "X-Area-Columns": str(AREA_COLUMNS),
+            "X-Area-Cell-M": f"{area.cell_m:.4f}",
+        }
+        return Response(service.area(area), media_type="application/octet-stream", headers=headers)
 
     @app.get("/api/elevation")
     def elevation(lat: Lat, lon: Lon) -> dict[str, float]:

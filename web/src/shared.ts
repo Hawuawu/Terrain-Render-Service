@@ -1,55 +1,40 @@
-export const COLUMNS = 64;
-/** Greedy runs stop at this many columns so merged faces still follow the globe's curvature. */
-export const MAX_MERGE = 8;
 export const EARTH_RADIUS = 6_371_008.8;
-export const MAX_RELIEF = 9_000;
+/** Columns per mesh chunk edge: an area of 512 x 512 columns is meshed as 8 x 8 chunks in parallel. */
+export const CHUNK = 64;
+/** Greedy top faces stop at this many columns per side; the scene is flat, so this only bounds face size. */
+export const MAX_MERGE = 32;
 
-export interface MeshRequest {
-  id: number;
-  z: number;
-  x: number;
-  y: number;
-  exaggeration: number;
+export interface AreaGrid {
+  /** Column heights in metres, row 0 at the north edge. */
+  heights: Int16Array;
+  /** Columns per edge. */
+  n: number;
+  /** Edge of one column in metres. */
+  cell: number;
 }
 
-export interface MeshResult {
-  type: 'mesh';
+export interface ChunkRequest extends AreaGrid {
   id: number;
-  center: [number, number, number];
+  exaggeration: number;
+  chunks: [number, number][];
+}
+
+export interface ChunkMesh {
+  type: 'chunk';
+  id: number;
   positions: Float32Array;
-  normals: Float32Array;
   colors: Uint8Array;
   grid: Float32Array;
   indices: Uint32Array;
 }
 
-export interface MeshError {
+export interface ChunkError {
   type: 'error';
   id: number;
   message: string;
 }
 
-export type WorkerReply = MeshResult | MeshError;
-
-export interface Bounds {
-  west: number;
-  south: number;
-  east: number;
-  north: number;
-}
-
-/** Geographic TMS pyramid: two tiles at zoom 0, y counted from the south. */
-export function tileBounds(z: number, x: number, y: number): Bounds {
-  const size = 180 / 2 ** z;
-  const west = -180 + x * size;
-  const south = -90 + y * size;
-  return { west, south, east: west + size, north: south + size };
-}
-
-/** Edge of one voxel at zoom `z`: the north-south extent of a column, so blocks are cubes. */
-export function voxelSize(z: number): number {
-  return (EARTH_RADIUS * Math.PI) / 2 ** z / COLUMNS;
-}
+export type WorkerReply = ChunkMesh | ChunkError;
 
 const DEG = Math.PI / 180;
 
@@ -61,4 +46,21 @@ export function geoToXyz(lon: number, lat: number, r: number): [number, number, 
 
 export function xyzToGeo(x: number, y: number, z: number): { lon: number; lat: number } {
   return { lon: Math.atan2(y, x) / DEG, lat: Math.asin(z / Math.hypot(x, y, z)) / DEG };
+}
+
+/** Latitude of a fractional Web Mercator row `y` at zoom `z` (row 0 at the north edge). */
+export function mercatorLat(z: number, y: number): number {
+  return Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / 2 ** z))) / DEG;
+}
+
+/** Fractional Web Mercator tile coordinates of a point at zoom `z`. */
+export function mercatorTile(z: number, lon: number, lat: number): { x: number; y: number } {
+  const l = Math.max(-85.0511, Math.min(85.0511, lat)) * DEG;
+  const n = 2 ** z;
+  return { x: ((lon + 180) / 360) * n, y: ((1 - Math.log(Math.tan(l) + 1 / Math.cos(l)) / Math.PI) / 2) * n };
+}
+
+/** Voxel level of a column: sea is flattened to level 0, land rounds to whole cubes of edge `cell`. */
+export function levelOf(h: number, exaggeration: number, cell: number): number {
+  return Math.round((Math.max(h, 0) * exaggeration) / cell);
 }

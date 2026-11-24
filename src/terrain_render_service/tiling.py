@@ -1,7 +1,8 @@
-"""Geographic (EPSG:4326, TMS) tile pyramid of the voxel globe."""
+"""Geographic rectangles and the Web Mercator tile pyramid of the relief globe."""
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 MAX_ZOOM = 20
@@ -41,7 +42,7 @@ class GeoBounds:
 
 @dataclass(frozen=True, slots=True)
 class TileId:
-    """A tile in the geographic scheme: 2 x 1 tiles at level 0, `y` counted from the south."""
+    """A Web Mercator (XYZ) tile of the relief globe: `y` counts from the north."""
 
     z: int
     x: int
@@ -52,19 +53,11 @@ class TileId:
         if not 0 <= self.z <= MAX_ZOOM:
             msg = f"zoom {self.z} outside 0..{MAX_ZOOM}"
             raise ValueError(msg)
-        if not (0 <= self.x < 2 ** (self.z + 1) and 0 <= self.y < 2**self.z):
+        if not (0 <= self.x < 2**self.z and 0 <= self.y < 2**self.z):
             msg = f"tile {self.x}/{self.y} outside level {self.z}"
             raise ValueError(msg)
 
     @property
-    def size_degrees(self) -> float:
-        """Edge length of the tile in degrees."""
-        return MAX_LON / (1 << self.z)
-
-    @property
-    def bounds(self) -> GeoBounds:
-        """The tile's lon/lat rectangle."""
-        size = self.size_degrees
-        west = -180.0 + self.x * size
-        south = -90.0 + self.y * size
-        return GeoBounds(west, south, west + size, south + size)
+    def centre_lat(self) -> float:
+        """Latitude of the tile's centre row in degrees."""
+        return math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (self.y + 0.5) / 2**self.z))))

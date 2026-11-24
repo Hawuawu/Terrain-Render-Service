@@ -1,33 +1,35 @@
-"""On-disk tile cache: every tile is generated once, then served from the volume."""
+"""On-disk cache: every generated tile or area is built once, then served from the volume."""
 
 from __future__ import annotations
 
 import os
 import tempfile
-from pathlib import Path
-
-from .tiling import TileId
+from pathlib import Path, PurePosixPath
 
 
 class TileCache:
-    """Stores tiles under `<root>/<version>/<z>/<x>/<y>.bin`."""
+    """Stores blobs under `<root>/<version>/<key>`, e.g. `relief/3/4/2.png`."""
 
     def __init__(self, root: Path, version: str) -> None:
-        """Use `root`; bump `version` to invalidate every cached tile."""
+        """Use `root`; bump `version` to invalidate everything cached."""
         self.root = root / version
 
-    def path(self, tile: TileId) -> Path:
-        """Where a tile lives on disk."""
-        return self.root / str(tile.z) / str(tile.x) / f"{tile.y}.bin"
+    def path(self, key: str) -> Path:
+        """Where `key` lives on disk; keys are relative POSIX paths without `..`."""
+        rel = PurePosixPath(key)
+        if rel.is_absolute() or ".." in rel.parts:
+            msg = f"invalid cache key {key!r}"
+            raise ValueError(msg)
+        return self.root.joinpath(*rel.parts)
 
-    def get(self, tile: TileId) -> bytes | None:
-        """Return the cached tile, if any."""
-        path = self.path(tile)
+    def get(self, key: str) -> bytes | None:
+        """Return the cached blob, if any."""
+        path = self.path(key)
         return path.read_bytes() if path.is_file() else None
 
-    def put(self, tile: TileId, data: bytes) -> None:
-        """Write atomically so concurrent readers never see a partial tile."""
-        path = self.path(tile)
+    def put(self, key: str, data: bytes) -> None:
+        """Write atomically so concurrent readers never see a partial blob."""
+        path = self.path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
         with os.fdopen(fd, "wb") as f:
