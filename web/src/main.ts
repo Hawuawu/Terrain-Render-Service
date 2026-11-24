@@ -122,8 +122,10 @@ sun.position.set(-0.6, 1, -0.4);
 areaScene.add(sun, new AmbientLight(0xffffff, 1.1));
 const outline = { value: 1 };
 const viewer = { value: new Vector2() };
-/** Voxels are drawn up to this distance from the viewer and the far field beyond it, so neither hides the other. */
-const VOXEL_REACH_M = LOAD_M * 0.95;
+/** Voxels are drawn up to this distance from the viewer. */
+const VOXEL_REACH_M = LOAD_M;
+/** Far-field vertices closer than this sink below sea level, out of the voxels' way (one far-field cell inside the reach). */
+const FAR_INNER_M = LOAD_M - 1_700;
 const CURVE = `
   vec4 curveWorld = modelMatrix * vec4(transformed, 1.0);
   vec2 curveD = curveWorld.xz - viewer;
@@ -161,10 +163,14 @@ material.onBeforeCompile = (shader) => {
     );
 };
 const farMaterial = new MeshLambertMaterial({ vertexColors: true });
-// Far-field vertices inside the voxels' reach drop far down, so the triangles across the seam form a skirt that
-// closes the gap under the voxels' cut edge; the fragments inside the reach are discarded.
+// Under the voxels the far field sinks below sea level (voxels never go below it), and the triangles rising from
+// there to its full height just inside the voxels' cut edge close the view under that edge.
 farMaterial.onBeforeCompile = (shader) =>
-  curved(shader, `length(vGround) < ${VOXEL_REACH_M.toFixed(1)}`, `\n  if (length(curveD) < ${VOXEL_REACH_M.toFixed(1)}) transformed.y -= 3000.0;`);
+  curved(
+    shader,
+    'false',
+    `\n  if (length(curveD) < ${FAR_INNER_M.toFixed(1)}) transformed.y = -400.0 - dot(curveD, curveD) / ${(2 * EARTH_RADIUS).toFixed(1)};`,
+  );
 const voxels = new PatchField(material);
 areaScene.add(voxels.group);
 const horizon = new Horizon(
