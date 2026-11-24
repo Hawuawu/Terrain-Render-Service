@@ -122,6 +122,8 @@ sun.position.set(-0.6, 1, -0.4);
 areaScene.add(sun, new AmbientLight(0xffffff, 1.1));
 const outline = { value: 1 };
 const viewer = { value: new Vector2() };
+/** Voxels are drawn up to this distance from the viewer and the far field beyond it, so neither hides the other. */
+const VOXEL_REACH_M = LOAD_M * 0.95;
 const CURVE = `
   vec4 curveWorld = modelMatrix * vec4(transformed, 1.0);
   vec2 curveD = curveWorld.xz - viewer;
@@ -138,7 +140,7 @@ function curved(shader: { uniforms: Record<string, unknown>; vertexShader: strin
 }
 const material = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
 material.onBeforeCompile = (shader) => {
-  curved(shader, `length(vGround) > ${(LOAD_M * 0.95).toFixed(1)}`);
+  curved(shader, `length(vGround) > ${VOXEL_REACH_M.toFixed(1)}`);
   shader.uniforms.outline = outline;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nattribute vec2 grid;\nvarying vec2 vGrid;')
@@ -155,7 +157,7 @@ material.onBeforeCompile = (shader) => {
     );
 };
 const farMaterial = new MeshLambertMaterial({ vertexColors: true });
-farMaterial.onBeforeCompile = (shader) => curved(shader, `length(vGround) < ${(LOAD_M * 0.7).toFixed(1)}`);
+farMaterial.onBeforeCompile = (shader) => curved(shader, `length(vGround) < ${VOXEL_REACH_M.toFixed(1)}`);
 const voxels = new PatchField(material);
 areaScene.add(voxels.group);
 const horizon = new Horizon(
