@@ -327,7 +327,9 @@ function walk(dt: number): void {
   const speed = Math.min(areaCamera.position.distanceTo(orbit.target), 15_000) * 0.6;
   const dir = f.multiplyScalar(iy).add(right.multiplyScalar(ix)).normalize();
   travel = { x: dir.x, z: dir.z };
-  followGround(orbit.target.clone().addScaledVector(dir, speed * dt), voxels.cell, dt);
+  const next = orbit.target.clone().addScaledVector(dir, speed * dt);
+  if (Math.abs(toGeo(o, next).lat) > MAX_AREA_LAT) return;
+  followGround(next, voxels.cell, dt);
   if (Math.hypot(orbit.target.x, orbit.target.z) > REORIGIN_M) reorigin();
 }
 
@@ -397,11 +399,14 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     return;
   }
   raycaster.setFromCamera(ndc, areaCamera);
-  const hit = raycaster.intersectObjects(voxels.group.children, false)[0];
+  const t = orbit.target;
+  const hit = raycaster
+    .intersectObjects(voxels.group.children, false)
+    .find((x) => Math.hypot(x.point.x - t.x, x.point.z - t.z) <= VOXEL_REACH_M);
   const o = voxels.origin;
   const inside = hit?.face ? hit.point.clone().addScaledVector(hit.face.normal, -0.01) : hit?.point;
   const h = inside && voxels.heightAt(inside.x, inside.z);
-  if (!o || h == null) return;
+  if (!o || !hit || h == null) return;
   const { lat, lon } = toGeo(o, hit.point);
   readout.textContent = `${fmt(lat, lon)}: ${Math.round(h)} m`;
 });
