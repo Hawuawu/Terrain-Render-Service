@@ -129,11 +129,15 @@ const CURVE = `
   vec2 curveD = curveWorld.xz - viewer;
   transformed.y -= dot(curveD, curveD) / ${(2 * EARTH_RADIUS).toFixed(1)};
   vGround = curveD;`;
-function curved(shader: { uniforms: Record<string, unknown>; vertexShader: string; fragmentShader: string }, cut: string): void {
+function curved(
+  shader: { uniforms: Record<string, unknown>; vertexShader: string; fragmentShader: string },
+  cut: string,
+  vertex = '',
+): void {
   shader.uniforms.viewer = viewer;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nuniform vec2 viewer;\nvarying vec2 vGround;')
-    .replace('#include <begin_vertex>', `#include <begin_vertex>${CURVE}`);
+    .replace('#include <begin_vertex>', `#include <begin_vertex>${CURVE}${vertex}`);
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', '#include <common>\nvarying vec2 vGround;')
     .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\nif (${cut}) discard;`);
@@ -157,7 +161,10 @@ material.onBeforeCompile = (shader) => {
     );
 };
 const farMaterial = new MeshLambertMaterial({ vertexColors: true });
-farMaterial.onBeforeCompile = (shader) => curved(shader, `length(vGround) < ${VOXEL_REACH_M.toFixed(1)}`);
+// Far-field vertices inside the voxels' reach drop far down, so the triangles across the seam form a skirt that
+// closes the gap under the voxels' cut edge; the fragments inside the reach are discarded.
+farMaterial.onBeforeCompile = (shader) =>
+  curved(shader, `length(vGround) < ${VOXEL_REACH_M.toFixed(1)}`, `\n  if (length(curveD) < ${VOXEL_REACH_M.toFixed(1)}) transformed.y -= 3000.0;`);
 const voxels = new PatchField(material);
 areaScene.add(voxels.group);
 const horizon = new Horizon(
