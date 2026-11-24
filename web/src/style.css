@@ -17,3 +17,8 @@ canvas { display: block; touch-action: none; }
 #back:hover { background: #36404c; }
 #veil { position: absolute; inset: 0; background: #b7c4cf; opacity: 0; pointer-events: none; transition: opacity 0.45s ease; }
 #veil.on { opacity: 1; }
+#minimap {
+  position: absolute; top: 12px; right: 12px; width: 160px; height: 160px; border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(232 234 237 / 70%), 0 0 0 14px rgb(20 24 30 / 85%); pointer-events: none;
+}
+#minimap[hidden] { display: none; }

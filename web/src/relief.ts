@@ -154,6 +154,13 @@ export class ReliefGlobe {
     }
   }
 
+  /** Draw only the whole-Earth base level, e.g. for the overview inset. */
+  renderOverview(renderer: WebGLRenderer, camera: PerspectiveCamera): void {
+    this.group.children[0].visible = true;
+    for (const t of this.tiles.values()) t.mesh.visible = t.ready && t.z === BASE_ZOOM;
+    renderer.render(this.scene, camera);
+  }
+
   /** Geographic point where `ray` meets the sphere, if it does. */
   pick(ray: Ray): { lat: number; lon: number } | null {
     const o = ray.origin;

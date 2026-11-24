@@ -4,10 +4,14 @@ import {
   Color,
   DirectionalLight,
   Fog,
+  Mesh,
+  MeshBasicMaterial,
   MeshLambertMaterial,
   PerspectiveCamera,
   Raycaster,
   Scene,
+  SphereGeometry,
+  Vector3,
   Vector2,
   WebGLRenderer,
 } from 'three';
@@ -15,7 +19,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { type AreaInfo, VoxelArea, fetchArea } from './area.ts';
 import { GlobeControls, type View } from './controls.ts';
 import { ReliefGlobe } from './relief.ts';
-import { levelOf } from './shared.ts';
+import { EARTH_RADIUS, geoToXyz, levelOf } from './shared.ts';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const container = el<HTMLDivElement>('globe');
@@ -27,6 +31,7 @@ const hint = el<HTMLParagraphElement>('hint');
 const readout = el<HTMLParagraphElement>('readout');
 const status = el<HTMLParagraphElement>('status');
 const veil = el<HTMLDivElement>('veil');
+const minimap = el<HTMLDivElement>('minimap');
 
 const HAZE = 0xb7c4cf;
 const METRES_PER_DEGREE = (6_371_008.8 * Math.PI) / 180;
@@ -56,6 +61,39 @@ function viewFromHash(): View | null {
   return ok(lat) && ok(lon) && ok(alt) ? { lat, lon, alt, tilt: ok(tilt) ? tilt : 0, heading: ok(heading) ? heading : 0 } : null;
 }
 const controls = new GlobeControls(renderer.domElement, viewFromHash() ?? { lat: 30, lon: 10, alt: 18_000_000, tilt: 0, heading: 0 });
+
+// Overview inset: the base relief level seen from far away, centred on the current place, with a marker on it.
+const MINI_PX = 160;
+const MINI_MARGIN = 12;
+const MINI_SHOW_BELOW_ALT = 3_000_000;
+const miniCamera = new PerspectiveCamera(30, 1, EARTH_RADIUS, EARTH_RADIUS * 10);
+const miniScene = new Scene();
+const marker = new Mesh(
+  new SphereGeometry(EARTH_RADIUS * 0.035, 16, 8),
+  new MeshBasicMaterial({ color: 0xff3b30, depthTest: false }),
+);
+miniScene.add(marker);
+
+function renderMinimap(lat: number, lon: number): void {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  const x = w - MINI_PX - MINI_MARGIN;
+  const y = h - MINI_PX - MINI_MARGIN;
+  miniCamera.position.set(...geoToXyz(lon, lat, EARTH_RADIUS * 4.2));
+  miniCamera.up.set(0, 0, 1);
+  miniCamera.lookAt(0, 0, 0);
+  miniCamera.updateMatrixWorld();
+  marker.position.set(...geoToXyz(lon, lat, EARTH_RADIUS));
+  renderer.setScissorTest(true);
+  renderer.setScissor(x, y, MINI_PX, MINI_PX);
+  renderer.setViewport(x, y, MINI_PX, MINI_PX);
+  renderer.clear();
+  globe.renderOverview(renderer, miniCamera);
+  renderer.clearDepth();
+  renderer.render(miniScene, miniCamera);
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, w, h);
+}
 
 // Voxel view: Lambert shading with VXLEngine-style block outlines (`grid` holds column/level coordinates, so
 // lines fall where their fractional part crosses zero) and a radial fade into the fog towards the area's edge.
@@ -133,7 +171,8 @@ async function veiled(change: () => void): Promise<void> {
 
 const fmt = (lat: number, lon: number) => `${lat.toFixed(4)}°, ${wrapLon(lon).toFixed(4)}°`;
 
-async function openArea(lat: number, lon: number): Promise<void> {
+/** Open the voxel area around (lat, lon); `walk` continues from the current voxel view without the fly-in. */
+async function openArea(lat: number, lon: number, walk = false): Promise<void> {
   if (Math.abs(lat) > MAX_AREA_LAT) {
     readout.textContent = `${fmt(lat, lon)}: the voxel view covers latitudes up to ±${MAX_AREA_LAT}°.`;
     return;
@@ -142,12 +181,26 @@ async function openArea(lat: number, lon: number): Promise<void> {
   loadingArea = true;
   const v = controls.view;
   const start = performance.now();
-  flight = { from: { ...v }, to: { lat, lon, alt: Math.min(v.alt, 60_000), tilt: 0, heading: 0 }, start };
+  if (!walk) flight = { from: { ...v }, to: { lat, lon, alt: Math.min(v.alt, 60_000), tilt: 0, heading: 0 }, start };
   status.textContent = `Loading 20 × 20 km around ${fmt(lat, lon)} …`;
   let area: AreaInfo;
   try {
     area = await fetchArea(lat, lon);
+    if (job !== opening) return;
+    const offset = areaCamera.position.clone().sub(orbit.target);
+    const from = orbit.target.clone();
     await voxels.build(area, Number(exaggeration.value));
+    if (walk && job === opening && mode === 'area') {
+      // Re-centre on the new area, keeping the camera where it was relative to the ground point it looked at.
+      loadingArea = false;
+      const east = wrapLon(lon - area.lon) * METRES_PER_DEGREE * Math.cos((area.lat * Math.PI) / 180);
+      orbit.target.set(east, from.y, -(lat - area.lat) * METRES_PER_DEGREE);
+      areaCamera.position.copy(orbit.target).add(offset);
+      orbit.update();
+      readout.textContent = `Centre ${fmt(area.lat, area.lon)}`;
+      history.replaceState(null, '', `#area=${area.lat},${area.lon}`);
+      return;
+    }
     await sleep(Math.max(0, 1300 - (performance.now() - start)));
   } catch (err) {
     if (job === opening) {
@@ -170,7 +223,7 @@ async function openArea(lat: number, lon: number): Promise<void> {
     areaCamera.position.set(0, y + 5500, 7500);
     orbit.update();
     areaTools.hidden = false;
-    hint.textContent = 'Drag to orbit · right-drag to pan · wheel to zoom · click a voxel for its height';
+    hint.textContent = 'Drag to orbit · right-drag or arrow keys to move · wheel to zoom · click a voxel for its height';
     readout.textContent = `Centre ${fmt(area.lat, area.lon)}: ${Math.round(centre)} m`;
     history.replaceState(null, '', `#area=${area.lat},${area.lon}`);
   });
@@ -209,6 +262,51 @@ window.addEventListener('keydown', (e) => {
     lastStatus = performance.now() + 2000;
   }
 });
+// Arrow keys move the view while held: they pan the globe, or walk across the voxel area (and on into the next one).
+const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+const held = new Set<string>();
+window.addEventListener('keydown', (e) => {
+  if (!(e.key in ARROWS) || e.target instanceof HTMLInputElement) return;
+  e.preventDefault();
+  held.add(e.key);
+});
+window.addEventListener('keyup', (e) => held.delete(e.key));
+window.addEventListener('blur', () => held.clear());
+
+function arrowInput(): [number, number] {
+  let x = 0;
+  let y = 0;
+  for (const k of held) {
+    x += ARROWS[k][0];
+    y += ARROWS[k][1];
+  }
+  return [x, y];
+}
+
+function walk(dt: number): void {
+  const [ix, iy] = arrowInput();
+  const a = voxels.area;
+  if ((!ix && !iy) || !a) return;
+  const f = orbit.target.clone().sub(areaCamera.position).setY(0).normalize();
+  const right = new Vector3(-f.z, 0, f.x);
+  const speed = areaCamera.position.distanceTo(orbit.target) * 0.6;
+  const step = f.multiplyScalar(iy).add(right.multiplyScalar(ix)).normalize().multiplyScalar(speed * dt);
+  const next = orbit.target.clone().add(step);
+  const lim = meta.area_size_m * 0.4;
+  if (Math.abs(next.x) > lim || Math.abs(next.z) > lim) {
+    if (!loadingArea) {
+      const lat = a.lat - next.z / METRES_PER_DEGREE;
+      const lon = wrapLon(a.lon + next.x / METRES_PER_DEGREE / Math.cos((a.lat * Math.PI) / 180));
+      void openArea(lat, lon, true);
+    }
+    return;
+  }
+  const ground = levelOf(voxels.heightAt(next.x, next.z) ?? 0, Number(exaggeration.value), a.cell) * a.cell;
+  next.y += (ground - next.y) * Math.min(1, dt * 3);
+  areaCamera.position.add(next.clone().sub(orbit.target));
+  orbit.target.copy(next);
+}
+
 exaggeration.addEventListener('change', () => {
   const a = voxels.area;
   if (mode !== 'area' || !a) return;
@@ -284,8 +382,13 @@ if (startArea) void openArea(startArea.lat, startArea.lon);
 
 let lastHash = 0;
 let lastStatus = 0;
+let lastFrame = performance.now();
 function frame(now: number): void {
+  const dt = Math.min(0.1, (now - lastFrame) / 1000);
+  lastFrame = now;
   if (mode === 'globe') {
+    const [ix, iy] = arrowInput();
+    if ((ix || iy) && !flight) controls.pan(-ix * 500 * dt, iy * 500 * dt);
     fly(now);
     controls.apply(globeCamera);
     const v = controls.view;
@@ -293,6 +396,8 @@ function frame(now: number): void {
     globeCamera.updateProjectionMatrix();
     globe.update(v, container.clientHeight);
     globe.render(renderer, globeCamera);
+    minimap.hidden = v.alt > MINI_SHOW_BELOW_ALT;
+    if (!minimap.hidden) renderMinimap(v.lat, v.lon);
     if (controls.changed && !flight && now - lastHash > 500 && !loadingArea) {
       controls.changed = false;
       lastHash = now;
@@ -306,9 +411,16 @@ function frame(now: number): void {
       status.textContent = `alt ${alt} · zoom ${s.zoom} · ${s.shown} tiles shown, ${s.loading} loading`;
     }
   } else {
+    walk(dt);
     orbit.update();
     renderer.clear();
     renderer.render(areaScene, areaCamera);
+    const a = voxels.area;
+    minimap.hidden = !a;
+    if (a) {
+      const t = orbit.target;
+      renderMinimap(a.lat - t.z / METRES_PER_DEGREE, a.lon + t.x / METRES_PER_DEGREE / Math.cos((a.lat * Math.PI) / 180));
+    }
     if (now - lastStatus > 250 && voxels.area) {
       lastStatus = now;
       const a = voxels.area;
