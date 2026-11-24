@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,5 +19,5 @@ class Settings(BaseSettings):
     glo30_url: str = "https://copernicus-dem-30m.s3.amazonaws.com"
     glo90_url: str = "https://copernicus-dem-90m.s3.amazonaws.com"
     terrarium_url: str = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium"
-    relief_max_zoom: int = 12
+    relief_max_zoom: int = Field(12, ge=2, le=15)  # the globe always draws zoom 2
     allowed_hosts: list[str] = ["localhost:*", "127.0.0.1:*", "terrain.localhost:*"]

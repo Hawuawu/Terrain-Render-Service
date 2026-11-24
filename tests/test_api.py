@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from fastmcp import Client
+from pydantic import ValidationError
 
 from terrain_render_service.api import build_service, create_app
 from terrain_render_service.mcp_server import build_mcp
@@ -109,3 +110,8 @@ def test_mcp_guards_host_and_origin(client: TestClient, headers: dict[str, str],
     with client:
         r = client.post("/mcp", json=INITIALIZE, headers={"accept": "application/json, text/event-stream", **headers})
     assert r.status_code == status
+
+
+def test_relief_max_zoom_must_cover_the_globe_base() -> None:
+    with pytest.raises(ValidationError):
+        Settings(relief_max_zoom=1)
