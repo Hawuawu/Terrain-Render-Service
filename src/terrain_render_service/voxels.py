@@ -7,9 +7,9 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 
 from .dem import Grid
-from .tiling import GeoBounds
 
 EARTH_RADIUS_M = 6_371_008.8
 METRES_PER_DEGREE = EARTH_RADIUS_M * math.pi / 180
@@ -53,14 +53,14 @@ class Area:
         return f"area/{self.lat:+06.2f}_{self.lon:+07.2f}.bin"
 
     @property
-    def column_centres(self) -> GeoBounds:
-        """Bounds whose edge-inclusive `AREA_COLUMNS` grid lands on the column centres."""
+    def column_centres(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """`(lons, lats)` of every column centre, row 0 north; longitudes wrap across the antimeridian."""
         half_m = AREA_SIZE_M / 2 - self.cell_m / 2
         dlat = half_m / METRES_PER_DEGREE
         dlon = dlat / math.cos(math.radians(self.lat))
-        west = max(-180.0, self.lon - dlon)
-        east = min(180.0, self.lon + dlon)
-        return GeoBounds(west, self.lat - dlat, east, self.lat + dlat)
+        lons = np.linspace(self.lon - dlon, self.lon + dlon, AREA_COLUMNS)
+        lats = np.linspace(self.lat + dlat, self.lat - dlat, AREA_COLUMNS)
+        return np.meshgrid((lons + 180) % 360 - 180, lats)
 
 
 def encode_columns(heights: Grid) -> bytes:

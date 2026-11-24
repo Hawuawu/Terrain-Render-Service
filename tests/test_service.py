@@ -13,9 +13,9 @@ from .conftest import SlopeSource
 def test_area_holds_source_heights_at_column_centres(service: TerrainService) -> None:
     area = Area.around(45.832, 6.865)
     cols = np.frombuffer(gzip.decompress(service.area(area)), dtype="<i2").reshape(AREA_COLUMNS, AREA_COLUMNS)
-    b = area.column_centres
-    assert cols[0, 0] == round(b.west * 1000)
-    assert cols[-1, -1] == round(b.east * 1000)
+    lons, _ = area.column_centres
+    assert cols[0, 0] == round(lons[0, 0] * 1000)
+    assert cols[-1, -1] == round(lons[-1, -1] * 1000)
 
 
 def test_area_is_cached(service: TerrainService, slope: SlopeSource) -> None:

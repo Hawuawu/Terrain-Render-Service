@@ -7,13 +7,14 @@ from dataclasses import dataclass
 from typing import Protocol
 
 import numpy as np
+import numpy.typing as npt
 
 from .cache import TileCache
 from .dem import Grid, SourceLadder
 from .preview import render_png
 from .relief import relief_png
 from .tiling import GeoBounds, TileId
-from .voxels import AREA_COLUMNS, EARTH_RADIUS_M, Area, encode_columns
+from .voxels import EARTH_RADIUS_M, Area, encode_columns
 
 MAX_AREA_DEGREES = 2.0
 MAX_PROFILE_SAMPLES = 500
@@ -36,8 +37,8 @@ class OverviewSource(Protocol):
         """One 256 x 256 Web Mercator tile of heights."""
         ...
 
-    def grid(self, bounds: GeoBounds, size: int) -> Grid:
-        """Return `size` x `size` samples, edges inclusive, row 0 at the north edge."""
+    def grid_at(self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64]) -> Grid:
+        """Heights on a regular `(lons, lats)` mesh, row 0 at the north edge."""
         ...
 
 
@@ -70,7 +71,7 @@ class TerrainService:
         """Return the gzipped column heights of a voxel area, sampled on first request."""
         cached = self.cache.get(area.key)
         if cached is None:
-            cached = encode_columns(self.overview.grid(area.column_centres, AREA_COLUMNS))
+            cached = encode_columns(self.overview.grid_at(*area.column_centres))
             self.cache.put(area.key, cached)
         return cached
 

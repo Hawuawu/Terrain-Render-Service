@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from terrain_render_service.cache import TileCache
@@ -23,6 +24,10 @@ class SlopeSource:
         self.calls += 1
         lons = np.linspace(bounds.west, bounds.east, size, dtype=np.float32)
         return np.tile(lons * 1000, (size, 1)).astype(np.float32)
+
+    def grid_at(self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64]) -> Grid:  # noqa: ARG002
+        self.calls += 1
+        return (lons * 1000).astype(np.float32)
 
     def tile(self, z: int, x: int, y: int) -> Grid:  # noqa: ARG002
         self.calls += 1

@@ -230,7 +230,7 @@ class TerrariumSource:
         """Nearest-pixel heights at the given points; latitudes beyond Mercator's limit use the edge row."""
         px, py = mercator_pixels(lons, lats, z)
         limit = TERRARIUM_TILE * (1 << z) - 1
-        px = np.clip(px.astype(np.int64), 0, limit)
+        px = np.mod(np.floor(px), limit + 1).astype(np.int64)
         py = np.clip(py.astype(np.int64), 0, limit)
         out = np.empty(px.shape, dtype=np.float32)
         tx, ty = px // TERRARIUM_TILE, py // TERRARIUM_TILE
@@ -248,6 +248,13 @@ class TerrariumSource:
             np.linspace(bounds.west, bounds.east, size), np.linspace(bounds.north, bounds.south, size)
         )
         return self.sample(lons, lats, self.zoom_for(bounds, size))
+
+    def grid_at(self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64]) -> Grid:
+        """Heights on a regular `(lons, lats)` mesh (row 0 north), from the zoom whose pixels match its spacing."""
+        dlat = abs(float(lats[0, 0] - lats[1, 0]))
+        dlon = dlat / math.cos(math.radians(float(lats.mean())))
+        z = int(np.clip(math.ceil(math.log2(360 / (TERRARIUM_TILE * dlon))), 0, 15))
+        return self.sample(lons, lats, z)
 
     def points(self, lonlats: list[tuple[float, float]]) -> list[float]:
         """Return the height at each `(lon, lat)` from zoom-10 tiles (about 150 m)."""

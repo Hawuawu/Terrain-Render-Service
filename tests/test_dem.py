@@ -140,6 +140,16 @@ def test_terrarium_tile_budget_lowers_zoom() -> None:
     assert FakeTerrarium().zoom_for(GeoBounds(-180, -90, 180, 90), 1024) == 1
 
 
+def test_terrarium_grid_at_wraps_the_antimeridian_and_matches_spacing() -> None:
+    src = FakeTerrarium()
+    lons, lats = np.meshgrid([179.99, -179.99], [0.01, -0.01])
+    heights = src.grid_at(lons, lats)
+    z = src.fetched[0][0]
+    assert z == 7
+    assert heights[0, 0] == ((1 << z) - 1) * 1000
+    assert heights[0, 1] == 0
+
+
 def test_terrarium_points_use_zoom_10() -> None:
     src = FakeTerrarium()
     assert src.points([(0.1, 0.0)]) == [512_000.0]
