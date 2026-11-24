@@ -214,7 +214,8 @@ exaggeration.addEventListener('change', () => {
   if (mode !== 'area' || !a) return;
   const k = Number(exaggeration.value);
   void voxels.build(a, k).then(() => {
-    const dy = levelOf(voxels.heightAt(0, 0) ?? 0, k, a.cell) * a.cell - orbit.target.y;
+    const ground = voxels.heightAt(orbit.target.x, orbit.target.z) ?? 0;
+    const dy = levelOf(ground, k, a.cell) * a.cell - orbit.target.y;
     orbit.target.y += dy;
     areaCamera.position.y += dy;
     orbit.update();
