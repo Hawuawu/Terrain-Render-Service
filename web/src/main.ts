@@ -62,7 +62,8 @@ function viewFromHash(): View {
 }
 
 const controls = new GlobeControls(renderer.domElement, viewFromHash());
-const globe = new VoxelGlobe(scene, material, Number(exaggeration.value));
+const meta = (await (await fetch('/voxels/meta.json')).json()) as { max_zoom: number };
+const globe = new VoxelGlobe(scene, material, Number(exaggeration.value), meta.max_zoom);
 
 exaggeration.addEventListener('change', () => globe.setExaggeration(Number(exaggeration.value)));
 outlines.addEventListener('change', () => (outline.value = outlines.checked ? 1 : 0));
