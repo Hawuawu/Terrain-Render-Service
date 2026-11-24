@@ -433,7 +433,7 @@ function frame(now: number): void {
       const t = orbit.target;
       renderMinimap(a.lat - t.z / METRES_PER_DEGREE, a.lon + t.x / METRES_PER_DEGREE / Math.cos((a.lat * Math.PI) / 180));
     }
-    if (now - lastStatus > 250 && voxels.area) {
+    if (now - lastStatus > 250 && voxels.area && !loadingArea) {
       lastStatus = now;
       const a = voxels.area;
       status.textContent = `${((a.n * a.cell) / 1000).toFixed(0)} × ${((a.n * a.cell) / 1000).toFixed(0)} km · ${a.cell.toFixed(0)} m voxels · ${voxels.group.children.length} chunks`;
