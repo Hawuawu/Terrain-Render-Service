@@ -75,10 +75,14 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
   const mid = geoToXyz((b.west + b.east) / 2, (b.south + b.north) / 2, EARTH_RADIUS);
   const out = new MeshBuilder(mid);
 
-  const used = new Uint8Array(N * N);
+  // rect[k] is 1 + the index of the merged top face covering column k (0 = not yet covered).
+  const used = new Int32Array(N * N);
+  const spans: [number, number, number, number][] = [[0, 0, 0, 0]];
+  let rects = 0;
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
       if (used[j * N + i]) continue;
+      rects++;
       const lv = level(i, j);
       const b = band(i, j);
       let w = 1;
@@ -88,7 +92,8 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
         for (let k = 0; k < w; k++) if (used[(j + h) * N + i + k] || !same(i + k, j + h, lv, b)) break grow;
         h++;
       }
-      for (let jj = j; jj < j + h; jj++) used.fill(1, jj * N + i, jj * N + i + w);
+      for (let jj = j; jj < j + h; jj++) used.fill(rects, jj * N + i, jj * N + i + w);
+      spans.push([i, i + w, j, j + h]);
       const r = radius(lv);
       const corners: Vec[] = [
         geoToXyz(lon(i), lat(j + h), r),
@@ -102,6 +107,21 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
   }
 
   // Side walls: one quad per run of columns sharing the same (level, neighbour level) pair.
+  // Where two merged faces of one level meet with different edge vertices (a T-junction), their edges
+  // follow different chords of the sphere; a one-voxel seam wall below the edge hides that crack.
+  const inside = (i: number, j: number) => i >= 0 && j >= 0 && i < N && j < N;
+  const seam = (i: number, j: number, ni: number, nj: number) => {
+    if (!inside(ni, nj) || level(ni, nj) !== level(i, j)) return false;
+    const [a, b] = [spans[used[j * N + i]], spans[used[nj * N + ni]]];
+    // Across a column edge the faces' row spans must match, across a row edge their column spans.
+    return ni !== i ? a[2] !== b[2] || a[3] !== b[3] : a[0] !== b[0] || a[1] !== b[1];
+  };
+  const bottom = (i: number, j: number, ni: number, nj: number): number | null => {
+    const lv = level(i, j);
+    const nl = level(ni, nj);
+    if (lv > nl) return nl;
+    return seam(i, j, ni, nj) ? lv - 1 : null;
+  };
   // For each face direction, `col` maps (row s, position a along the edge) to a column, `edge`
   // gives the edge point at position a, and `flip` says the left end (seen from outside) is a+len.
   type Dir = {
@@ -122,15 +142,15 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
       while (a < N) {
         const [ci, cj] = d.col(s, a);
         const lv = level(ci, cj);
-        const nl = level(ci + d.nb[0], cj + d.nb[1]);
-        if (lv <= nl) {
+        const nl = bottom(ci, cj, ci + d.nb[0], cj + d.nb[1]);
+        if (nl === null) {
           a++;
           continue;
         }
         let len = 1;
         while (len < MAX_MERGE && a + len < N) {
           const [ni, nj] = d.col(s, a + len);
-          if (level(ni, nj) !== lv || level(ni + d.nb[0], nj + d.nb[1]) !== nl) break;
+          if (level(ni, nj) !== lv || bottom(ni, nj, ni + d.nb[0], nj + d.nb[1]) !== nl) break;
           len++;
         }
         const aL = d.flip ? a + len : a;

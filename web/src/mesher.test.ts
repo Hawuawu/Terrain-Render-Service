@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { build } from './mesher.ts';
-import { COLUMNS as N, EARTH_RADIUS, MAX_MERGE, geoToXyz, tileBounds, voxelSize } from './shared.ts';
+import { COLUMNS as N, EARTH_RADIUS, MAX_MERGE, geoToXyz, tileBounds, voxelSize, xyzToGeo } from './shared.ts';
 
 type Vec = [number, number, number];
 const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -46,12 +46,20 @@ test('walls of a raised column face away from it, tile skirts face away from the
   const column = geoToXyz(b.west + 20.5 * cell, b.north - 10.5 * cell, EARTH_RADIUS);
   const near = voxelSize(z) * 2;
   const walls = tris.filter((t) => !t.top);
-  const columnWalls = walls.filter((t) => Math.hypot(...sub(t.centroid, column)) < near * 2);
+  const columnWalls = walls.filter((t) => Math.hypot(...sub(t.centroid, column)) < near * 2 && Math.hypot(...t.centroid) > EARTH_RADIUS);
   assert.equal(columnWalls.length, 8);
   for (const t of columnWalls) assert.ok(dot(t.normal, sub(t.centroid, column)) > 0);
-  const skirts = walls.filter((t) => !columnWalls.includes(t));
+  const onEdge = (t: { centroid: Vec }) => {
+    const g = xyzToGeo(...t.centroid);
+    return Math.min(g.lon - b.west, b.east - g.lon, g.lat - b.south, b.north - g.lat) < cell / 4;
+  };
+  const skirts = walls.filter(onEdge);
   assert.equal(skirts.length, 2 * 4 * (N / MAX_MERGE));
   for (const t of skirts) assert.ok(dot(t.normal, sub(t.centroid, m.center)) > 0);
+  // The column breaks the 8x8 merge grid around it; T-junction seams there sit one voxel below the surface.
+  const seams = walls.filter((t) => !columnWalls.includes(t) && !onEdge(t));
+  assert.ok(seams.length > 0);
+  for (const t of seams) assert.ok(Math.hypot(...t.centroid) < EARTH_RADIUS);
 });
 
 test('levels quantise exaggerated height into cubes and flatten the sea', () => {
