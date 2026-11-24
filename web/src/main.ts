@@ -191,7 +191,16 @@ function closeArea(): void {
 const globeHint = hint.textContent ?? '';
 
 back.addEventListener('click', closeArea);
-window.addEventListener('keydown', (e) => e.key === 'Escape' && mode === 'area' && closeArea());
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (mode === 'area') closeArea();
+  else if (loadingArea) {
+    opening++;
+    loadingArea = false;
+    flight = null;
+    status.textContent = 'Cancelled.';
+  }
+});
 exaggeration.addEventListener('change', () => {
   if (mode === 'area' && voxels.area) void voxels.build(voxels.area, Number(exaggeration.value));
 });
