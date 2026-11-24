@@ -30,6 +30,8 @@ const veil = el<HTMLDivElement>('veil');
 
 const HAZE = 0xb7c4cf;
 const METRES_PER_DEGREE = (6_371_008.8 * Math.PI) / 180;
+const MAX_AREA_LAT = 84;
+const wrapLon = (lon: number) => ((((lon + 180) % 360) + 360) % 360) - 180;
 
 const renderer = new WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -124,19 +126,24 @@ async function veiled(change: () => void): Promise<void> {
   veil.classList.remove('on');
 }
 
-const fmt = (lat: number, lon: number) => `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+const fmt = (lat: number, lon: number) => `${lat.toFixed(4)}°, ${wrapLon(lon).toFixed(4)}°`;
 
 async function openArea(lat: number, lon: number): Promise<void> {
+  if (Math.abs(lat) > MAX_AREA_LAT) {
+    readout.textContent = `${fmt(lat, lon)}: the voxel view covers latitudes up to ±${MAX_AREA_LAT}°.`;
+    return;
+  }
   const job = ++opening;
   loadingArea = true;
   const v = controls.view;
-  flight = { from: { ...v }, to: { lat, lon, alt: Math.min(v.alt, 60_000), tilt: 0, heading: 0 }, start: performance.now() };
+  const start = performance.now();
+  flight = { from: { ...v }, to: { lat, lon, alt: Math.min(v.alt, 60_000), tilt: 0, heading: 0 }, start };
   status.textContent = `Loading 20 × 20 km around ${fmt(lat, lon)} …`;
   let area: AreaInfo;
   try {
     area = await fetchArea(lat, lon);
     await voxels.build(area, Number(exaggeration.value));
-    await sleep(Math.max(0, 1300 - (performance.now() - flight.start)));
+    await sleep(Math.max(0, 1300 - (performance.now() - start)));
   } catch (err) {
     if (job === opening) {
       loadingArea = false;
