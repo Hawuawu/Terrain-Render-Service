@@ -9,6 +9,9 @@ export const PATCH_M = 5_000;
 /** Patches whose nearest point is within `LOAD_M` of the viewer load; beyond `DROP_M` they are dropped. */
 export const LOAD_M = 13_000;
 const DROP_M = 17_000;
+/** The service serves patches whose centre lies within ±84.1° latitude. */
+const MAX_PATCH_LAT = 84.1;
+const METRES_PER_DEGREE = (6_371_008.8 * Math.PI) / 180;
 
 export interface Origin {
   lat: number;
@@ -66,6 +69,7 @@ export class PatchField {
       for (let i = ci - reach; i <= ci + reach; i++) {
         const d = this.distance(i, j, at);
         if (d > LOAD_M || this.patches.has(`${i},${j}`)) continue;
+        if (Math.abs(o.lat - (j * PATCH_M) / METRES_PER_DEGREE) > MAX_PATCH_LAT) continue;
         const ahead = (i * PATCH_M - at.x) * dir.x + (j * PATCH_M - at.z) * dir.z;
         wanted.push({ i, j, score: d - 0.5 * ahead });
       }
