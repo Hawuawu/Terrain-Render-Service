@@ -11,7 +11,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import { GlobeControls, type View } from './controls.ts';
-import { xyzToGeo } from './shared.ts';
+import { voxelSize, xyzToGeo } from './shared.ts';
 import { VoxelGlobe } from './tiles.ts';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -125,7 +125,8 @@ let lastHash = 0;
 let lastStatus = 0;
 function frame(now: number): void {
   updateGround(controls.view);
-  controls.ground = groundMetres * globe.exaggeration;
+  // Voxel tops round heights by up to half a voxel; at the finest zoom keep the camera above that.
+  controls.ground = groundMetres * globe.exaggeration + voxelSize(meta.max_zoom) / 2;
   controls.apply(camera);
   const v = controls.view;
   camera.near = Math.max(0.5, v.alt * 0.001);
