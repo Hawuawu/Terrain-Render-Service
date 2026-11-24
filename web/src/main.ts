@@ -110,7 +110,7 @@ let groundMetres = 0;
 let groundKey = '';
 let groundTimer = 0;
 function updateGround(v: View): void {
-  const key = `${v.lat.toFixed(3)},${v.lon.toFixed(3)}`;
+  const key = `${v.lat.toFixed(5)},${v.lon.toFixed(5)}`;
   if (key === groundKey) return;
   groundKey = key;
   clearTimeout(groundTimer);
