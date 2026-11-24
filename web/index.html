@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>Terrain globe</title>
+  </head>
+  <body>
+    <div id="globe"></div>
+    <div id="veil"></div>
+    <div id="minimap" hidden></div>
+    <aside id="panel">
+      <h1>Terrain</h1>
+      <div id="area-tools" hidden>
+        <button id="back" type="button">← Back to globe</button>
+        <label>
+          Exaggeration
+          <input id="exaggeration" type="range" min="1" max="5" step="0.5" value="2" />
+        </label>
+        <label><input id="outlines" type="checkbox" checked /> Block outlines</label>
+      </div>
+      <p id="readout">Click a place to open its voxel view.</p>
+      <p id="status"></p>
+      <p class="hint" id="hint">Drag or arrow keys to pan · wheel to zoom · right-drag or shift-drag to tilt and turn · click to open voxels</p>
+      <p class="credit">
+        Elevation: AWS Terrain Tiles (Mapzen, SRTM, GMTED, ETOPO1 and others) · Queries: Copernicus DEM GLO-30/GLO-90
+        © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018
+      </p>
+    </aside>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
