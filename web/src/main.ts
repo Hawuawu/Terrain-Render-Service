@@ -273,7 +273,7 @@ function closeArea(to?: View): void {
     controls.changed = true;
     areaTools.hidden = true;
     hint.textContent = globeHint;
-    readout.textContent = 'Click a place to open a 20 × 20 km voxel view.';
+    readout.textContent = 'Click a place to open its voxel view.';
     voxels.clear();
     horizon.clear();
     const v = controls.view;
