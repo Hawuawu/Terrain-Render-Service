@@ -57,8 +57,8 @@ export class GlobeControls {
     const v = this.view;
     const perPx = (v.alt / EARTH_RADIUS) * (2 * Math.tan(30 * DEG)) / this.element.clientHeight;
     const h = v.heading * DEG;
-    const east = -dx * Math.cos(h) - dy * Math.sin(h);
-    const north = dy * Math.cos(h) - dx * Math.sin(h);
+    const east = -dx * Math.cos(h) + dy * Math.sin(h);
+    const north = dy * Math.cos(h) + dx * Math.sin(h);
     v.lat = Math.max(-89.9, Math.min(89.9, v.lat + (north * perPx) / DEG));
     v.lon += (east * perPx) / DEG / Math.max(Math.cos(v.lat * DEG), 0.01);
     v.lon = ((((v.lon + 180) % 360) + 360) % 360) - 180;
