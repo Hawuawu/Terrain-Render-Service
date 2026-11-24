@@ -14,7 +14,7 @@ from .dem import Grid, SourceLadder
 from .preview import render_png
 from .relief import relief_png
 from .tiling import GeoBounds, TileId
-from .voxels import EARTH_RADIUS_M, Area, encode_columns
+from .voxels import EARTH_RADIUS_M, Patch, encode_columns
 
 MAX_AREA_DEGREES = 2.0
 MAX_PROFILE_SAMPLES = 500
@@ -67,12 +67,12 @@ class TerrainService:
             self.cache.put(key, cached)
         return cached
 
-    def area(self, area: Area) -> bytes:
-        """Return the gzipped column heights of a voxel area, sampled on first request."""
-        cached = self.cache.get(area.key)
+    def patch(self, patch: Patch) -> bytes:
+        """Return the gzipped heights of a voxel patch or far field, sampled on first request."""
+        cached = self.cache.get(patch.key)
         if cached is None:
-            cached = encode_columns(self.overview.grid_at(*area.column_centres))
-            self.cache.put(area.key, cached)
+            cached = encode_columns(self.overview.grid_at(*patch.sample_points))
+            self.cache.put(patch.key, cached)
         return cached
 
     def elevation(self, lon: float, lat: float) -> float:

@@ -5,22 +5,23 @@ import pytest
 
 from terrain_render_service.service import TerrainService, haversine_m
 from terrain_render_service.tiling import GeoBounds, TileId
-from terrain_render_service.voxels import AREA_COLUMNS, Area
+from terrain_render_service.voxels import PATCH_COLUMNS, Origin, Patch
 
 from .conftest import SlopeSource
 
 
-def test_area_holds_source_heights_at_column_centres(service: TerrainService) -> None:
-    area = Area.around(45.832, 6.865)
-    cols = np.frombuffer(gzip.decompress(service.area(area)), dtype="<i2").reshape(AREA_COLUMNS, AREA_COLUMNS)
-    lons, _ = area.column_centres
+def test_patch_holds_source_heights_at_its_samples(service: TerrainService) -> None:
+    patch = Patch(Origin.around(45.832, 6.865), 2, 1)
+    n = PATCH_COLUMNS + 2
+    cols = np.frombuffer(gzip.decompress(service.patch(patch)), dtype="<i2").reshape(n, n)
+    lons, _ = patch.sample_points
     assert cols[0, 0] == round(lons[0, 0] * 1000)
     assert cols[-1, -1] == round(lons[-1, -1] * 1000)
 
 
-def test_area_is_cached(service: TerrainService, slope: SlopeSource) -> None:
-    first = service.area(Area.around(10, 10))
-    assert service.area(Area.around(10.004, 9.996)) == first
+def test_patch_is_cached(service: TerrainService, slope: SlopeSource) -> None:
+    first = service.patch(Patch(Origin.around(10, 10), 0, 0))
+    assert service.patch(Patch(Origin.around(10.004, 9.996), 0, 0)) == first
     assert slope.calls == 1
 
 

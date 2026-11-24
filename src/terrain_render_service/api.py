@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.responses import Response
@@ -15,10 +15,12 @@ from .mcp_server import build_mcp
 from .service import TerrainService
 from .settings import Settings
 from .tiling import TileId
-from .voxels import AREA_COLUMNS, AREA_SIZE_M, Area
+from .voxels import FAR_SIZE_M, MAX_INDEX, PATCH_SIZE_M, Origin, Patch
 
 Lat = Annotated[float, Query(ge=-90, le=90)]
 Lon = Annotated[float, Query(ge=-180, le=180)]
+CACHED = {"Cache-Control": "public, max-age=604800"}
+Index = Annotated[int, Query(ge=-MAX_INDEX, le=MAX_INDEX)]
 
 
 def build_service(settings: Settings) -> TerrainService:
@@ -30,6 +32,22 @@ def build_service(settings: Settings) -> TerrainService:
     return TerrainService(
         ladder, TerrariumSource(settings.terrarium_url), TileCache(settings.cache_dir, settings.cache_version)
     )
+
+
+def _patch_response(service: TerrainService, origin: Origin, i: int, j: int, kind: str) -> Response:
+    try:
+        patch = Patch(origin, i, j, kind)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    headers = {
+        **CACHED,
+        "Content-Encoding": "gzip",
+        "X-Origin-Lat": str(origin.lat),
+        "X-Origin-Lon": str(origin.lon),
+        "X-Samples": str(patch.samples),
+        "X-Cell-M": f"{patch.cell_m:.4f}",
+    }
+    return Response(service.patch(patch), media_type="application/octet-stream", headers=headers)
 
 
 def create_app(settings: Settings | None = None, service: TerrainService | None = None) -> FastAPI:
@@ -49,11 +67,9 @@ def create_app(settings: Settings | None = None, service: TerrainService | None 
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    cached = {"Cache-Control": "public, max-age=604800"}
-
     @app.get("/relief/meta.json")
     def relief_meta() -> dict[str, int | float]:
-        return {"max_zoom": settings.relief_max_zoom, "area_size_m": AREA_SIZE_M, "area_columns": AREA_COLUMNS}
+        return {"max_zoom": settings.relief_max_zoom, "patch_size_m": PATCH_SIZE_M, "far_size_m": FAR_SIZE_M}
 
     @app.get("/relief/{z}/{x}/{y}.png")
     def relief_tile(z: Annotated[int, Path(ge=0)], x: int, y: int) -> Response:
@@ -63,20 +79,11 @@ def create_app(settings: Settings | None = None, service: TerrainService | None 
             tile = TileId(z, x, y)
         except ValueError as e:
             raise HTTPException(404, str(e)) from e
-        return Response(service.relief(tile), media_type="image/png", headers=cached)
+        return Response(service.relief(tile), media_type="image/png", headers=CACHED)
 
-    @app.get("/voxels/area.bin")
-    def voxel_area(lat: Lat, lon: Lon) -> Response:
-        area = Area.around(lat, lon)
-        headers = {
-            **cached,
-            "Content-Encoding": "gzip",
-            "X-Area-Lat": str(area.lat),
-            "X-Area-Lon": str(area.lon),
-            "X-Area-Columns": str(AREA_COLUMNS),
-            "X-Area-Cell-M": f"{area.cell_m:.4f}",
-        }
-        return Response(service.area(area), media_type="application/octet-stream", headers=headers)
+    @app.get("/voxels/{kind}.bin")
+    def voxel_patch(kind: Literal["patch", "far"], lat: Lat, lon: Lon, i: Index = 0, j: Index = 0) -> Response:
+        return _patch_response(service, Origin.around(lat, lon), i, j, kind)
 
     @app.get("/api/elevation")
     def elevation(lat: Lat, lon: Lon) -> dict[str, float]:

@@ -31,7 +31,7 @@ def test_health_and_index(client: TestClient) -> None:
 
 def test_relief_meta(client: TestClient) -> None:
     meta = client.get("/relief/meta.json").json()
-    assert meta == {"max_zoom": 6, "area_size_m": 20_000, "area_columns": 512}
+    assert meta == {"max_zoom": 6, "patch_size_m": 5_000, "far_size_m": 400_000}
 
 
 def test_relief_tile(client: TestClient) -> None:
@@ -46,14 +46,22 @@ def test_relief_tile_not_found(client: TestClient, path: str) -> None:
     assert client.get(path).status_code == 404
 
 
-def test_voxel_area(client: TestClient) -> None:
-    r = client.get("/voxels/area.bin", params={"lat": 45.8326, "lon": 6.8652})
+def test_voxel_patch(client: TestClient) -> None:
+    r = client.get("/voxels/patch.bin", params={"lat": 45.8326, "lon": 6.8652, "i": 1, "j": -1})
     assert r.status_code == 200
     assert r.headers["content-encoding"] == "gzip"
-    assert (r.headers["x-area-lat"], r.headers["x-area-lon"], r.headers["x-area-columns"]) == ("45.83", "6.87", "512")
-    assert float(r.headers["x-area-cell-m"]) == pytest.approx(39.0625)
-    assert len(r.content) == 512 * 512 * 2
-    assert client.get("/voxels/area.bin", params={"lat": 95, "lon": 0}).status_code == 422
+    assert (r.headers["x-origin-lat"], r.headers["x-origin-lon"], r.headers["x-samples"]) == ("45.83", "6.87", "130")
+    assert float(r.headers["x-cell-m"]) == pytest.approx(39.0625)
+    assert len(r.content) == 130 * 130 * 2
+    assert client.get("/voxels/patch.bin", params={"lat": 95, "lon": 0}).status_code == 422
+    assert client.get("/voxels/patch.bin", params={"lat": 84, "lon": 0, "j": -5}).status_code == 404
+
+
+def test_voxel_far_field(client: TestClient) -> None:
+    r = client.get("/voxels/far.bin", params={"lat": 45.83, "lon": 6.87})
+    assert r.status_code == 200
+    assert r.headers["x-samples"] == "257"
+    assert len(r.content) == 257 * 257 * 2
 
 
 def test_elevation_endpoints(client: TestClient) -> None:
