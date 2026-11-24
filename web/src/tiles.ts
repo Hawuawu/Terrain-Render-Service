@@ -135,7 +135,7 @@ export class VoxelGlobe {
     const d = eye.length();
     const horizon = Math.acos(Math.min(1, EARTH_RADIUS / d)) + Math.acos(EARTH_RADIUS / (EARTH_RADIUS + relief));
     const off = Math.acos(Math.max(-1, Math.min(1, eye.dot(t.dir) / d)));
-    return off - t.angle / 2 <= horizon;
+    return off - t.angle <= horizon;
   }
 
   private refine(t: Tile, eye: Vector3, pxScale: number): boolean {
