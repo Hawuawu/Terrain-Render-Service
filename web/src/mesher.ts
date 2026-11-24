@@ -66,6 +66,7 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
   const level = (i: number, j: number) => (i < 0 || j < 0 || i >= N || j >= N ? base : levels[j * N + i]);
   const lon = (i: number) => b.west + i * cell;
   const lat = (j: number) => b.north - j * cell;
+  const SEAM_DROP = 0.45;
   const radius = (lv: number) => EARTH_RADIUS + lv * voxel;
   const tint = (i: number, j: number, shade = 1): Vec =>
     hypsometric(heights[j * N + i]).map((c) => c * shade) as Vec;
@@ -108,7 +109,8 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
 
   // Side walls: one quad per run of columns sharing the same (level, neighbour level) pair.
   // Where two merged faces of one level meet with different edge vertices (a T-junction), their edges
-  // follow different chords of the sphere; a one-voxel seam wall below the edge hides that crack.
+  // follow different chords of the sphere; a seam wall under the edge hides that crack. Its top stays
+  // below the longest chord's sag (under 0.4 voxel at MAX_MERGE 8), so it never pokes through the surface.
   const inside = (i: number, j: number) => i >= 0 && j >= 0 && i < N && j < N;
   const seam = (i: number, j: number, ni: number, nj: number) => {
     if (!inside(ni, nj) || level(ni, nj) !== level(i, j)) return false;
@@ -157,12 +159,13 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
         const aR = d.flip ? a : a + len;
         const [lx, ly] = d.edge(s, aL);
         const [rx, ry] = d.edge(s, aR);
+        const top = nl === lv - 1 && level(ci + d.nb[0], cj + d.nb[1]) === lv ? lv - SEAM_DROP : lv;
         const lo = radius(nl);
-        const hi = radius(lv);
+        const hi = radius(top);
         out.quad(
           [geoToXyz(lx, ly, lo), geoToXyz(rx, ry, lo), geoToXyz(rx, ry, hi), geoToXyz(lx, ly, hi)],
           tint(ci, cj, 0.8),
-          [[aL, nl], [aR, nl], [aR, lv], [aL, lv]],
+          [[aL, nl], [aR, nl], [aR, top], [aL, top]],
         );
         a += len;
       }

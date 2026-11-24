@@ -59,7 +59,7 @@ test('walls of a raised column face away from it, tile skirts face away from the
   // The column breaks the 8x8 merge grid around it; T-junction seams there sit one voxel below the surface.
   const seams = walls.filter((t) => !columnWalls.includes(t) && !onEdge(t));
   assert.ok(seams.length > 0);
-  for (const t of seams) assert.ok(Math.hypot(...t.centroid) < EARTH_RADIUS);
+  for (const t of seams) assert.ok(Math.hypot(...t.centroid) < EARTH_RADIUS - 0.45 * voxelSize(z));
 });
 
 test('levels quantise exaggerated height into cubes and flatten the sea', () => {
