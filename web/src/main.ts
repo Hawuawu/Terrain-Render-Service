@@ -99,8 +99,8 @@ async function pick(x: number, y: number, z: number): Promise<void> {
     readout.textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°: elevation unavailable (HTTP ${r.status})`;
     return;
   }
-  const body = (await r.json()) as { elevation_m: number; source: string };
-  readout.textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°: ${Math.round(body.elevation_m)} m (${body.source})`;
+  const body = (await r.json()) as { elevation_m: number };
+  readout.textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°: ${Math.round(body.elevation_m)} m`;
 }
 
 let lastHash = 0;
