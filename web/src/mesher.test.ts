@@ -68,3 +68,10 @@ test('levels quantise exaggerated height into cubes and flatten the sea', () => 
   assert.ok(Math.abs(maxR - (EARTH_RADIUS + 2 * voxelSize(10))) < 1);
   assert.ok(Math.abs(minR - (EARTH_RADIUS - voxelSize(10))) < 1);
 });
+
+test('flat merges stop at the coastline', () => {
+  const heights = new Int16Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < 4; i++) heights[j * N + i] = 10;
+  const tops = triangles(heights).tris.filter((t) => t.top);
+  assert.equal(tops.length, 2 * (N / MAX_MERGE) * (1 + Math.ceil((N - 4) / MAX_MERGE)));
+});

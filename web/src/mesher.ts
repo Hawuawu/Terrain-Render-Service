@@ -1,6 +1,6 @@
 // Port of VXLEngine's voxelChunk: quantise column heights into cube levels, greedy-merge equal
 // top faces into rectangles and side walls into runs, then bend the result onto the globe.
-import { hypsometric } from './palette.ts';
+import { bandHeight, hypsometric, tintBand } from './palette.ts';
 import {
   COLUMNS as N,
   EARTH_RADIUS,
@@ -69,6 +69,9 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
   const radius = (lv: number) => EARTH_RADIUS + lv * voxel;
   const tint = (i: number, j: number, shade = 1): Vec =>
     hypsometric(heights[j * N + i]).map((c) => c * shade) as Vec;
+  // Top faces only merge within one tint band, so coastlines and height bands survive flat merges.
+  const band = (i: number, j: number) => tintBand(heights[j * N + i]);
+  const same = (i: number, j: number, lv: number, b: number) => level(i, j) === lv && band(i, j) === b;
   const mid = geoToXyz((b.west + b.east) / 2, (b.south + b.north) / 2, EARTH_RADIUS);
   const out = new MeshBuilder(mid);
 
@@ -77,11 +80,12 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
     for (let i = 0; i < N; i++) {
       if (used[j * N + i]) continue;
       const lv = level(i, j);
+      const b = band(i, j);
       let w = 1;
-      while (w < MAX_MERGE && i + w < N && !used[j * N + i + w] && level(i + w, j) === lv) w++;
+      while (w < MAX_MERGE && i + w < N && !used[j * N + i + w] && same(i + w, j, lv, b)) w++;
       let h = 1;
       grow: while (h < MAX_MERGE && j + h < N) {
-        for (let k = 0; k < w; k++) if (used[(j + h) * N + i + k] || level(i + k, j + h) !== lv) break grow;
+        for (let k = 0; k < w; k++) if (used[(j + h) * N + i + k] || !same(i + k, j + h, lv, b)) break grow;
         h++;
       }
       for (let jj = j; jj < j + h; jj++) used.fill(1, jj * N + i, jj * N + i + w);
@@ -93,7 +97,7 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
         geoToXyz(lon(i), lat(j), r),
       ];
       const radial = corners.map((c) => c.map((v) => v / r) as Vec);
-      out.quad(corners, tint(i, j), [[i, j + h], [i + w, j + h], [i + w, j], [i, j]], radial);
+      out.quad(corners, hypsometric(bandHeight(b)), [[i, j + h], [i + w, j + h], [i + w, j], [i, j]], radial);
     }
   }
 

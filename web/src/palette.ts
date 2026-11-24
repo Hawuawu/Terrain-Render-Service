@@ -26,3 +26,16 @@ export function hypsometric(h: number): [number, number, number] {
   const last = STOPS[STOPS.length - 1];
   return [last[1], last[2], last[3]];
 }
+
+const LAND_BAND_M = 200;
+const SEA_BAND_M = 1000;
+
+/** Discrete tint band: sea (h <= 0) and land never share one. */
+export function tintBand(h: number): number {
+  return h > 0 ? Math.floor(h / LAND_BAND_M) : -1 - Math.floor(-h / SEA_BAND_M);
+}
+
+/** Representative height of a tint band. */
+export function bandHeight(b: number): number {
+  return b >= 0 ? (b + 0.5) * LAND_BAND_M : -(-b - 0.5) * SEA_BAND_M;
+}
