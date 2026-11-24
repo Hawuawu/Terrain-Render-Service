@@ -149,17 +149,19 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
           a++;
           continue;
         }
+        const seamAt = (i: number, j: number) => level(i + d.nb[0], j + d.nb[1]) === lv;
+        const isSeam = seamAt(ci, cj);
         let len = 1;
         while (len < MAX_MERGE && a + len < N) {
           const [ni, nj] = d.col(s, a + len);
-          if (level(ni, nj) !== lv || bottom(ni, nj, ni + d.nb[0], nj + d.nb[1]) !== nl) break;
+          if (level(ni, nj) !== lv || bottom(ni, nj, ni + d.nb[0], nj + d.nb[1]) !== nl || seamAt(ni, nj) !== isSeam) break;
           len++;
         }
         const aL = d.flip ? a + len : a;
         const aR = d.flip ? a : a + len;
         const [lx, ly] = d.edge(s, aL);
         const [rx, ry] = d.edge(s, aR);
-        const top = nl === lv - 1 && level(ci + d.nb[0], cj + d.nb[1]) === lv ? lv - SEAM_DROP : lv;
+        const top = isSeam ? lv - SEAM_DROP : lv;
         const lo = radius(nl);
         const hi = radius(top);
         out.quad(
