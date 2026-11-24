@@ -46,6 +46,10 @@ const globeCamera = new PerspectiveCamera(60, 1, 1, 1e8);
 const meta = (await (await fetch('/relief/meta.json')).json()) as { max_zoom: number; area_size_m: number };
 const globe = new ReliefGlobe(globeScene, meta.max_zoom);
 
+function areaFromHash(): { lat: number; lon: number } | null {
+  const m = /^#area=(-?[\d.]+),(-?[\d.]+)$/.exec(location.hash);
+  return m ? { lat: Number(m[1]), lon: Number(m[2]) } : null;
+}
 function viewFromHash(): View | null {
   const [lat, lon, alt, tilt, heading] = location.hash.slice(1).split(',').map(Number);
   const ok = (v: number) => Number.isFinite(v);
@@ -171,7 +175,7 @@ async function openArea(lat: number, lon: number): Promise<void> {
   });
 }
 
-function closeArea(): void {
+function closeArea(to?: View): void {
   const a = voxels.area;
   opening++;
   loadingArea = false;
@@ -179,7 +183,8 @@ function closeArea(): void {
     mode = 'globe';
     orbit.enabled = false;
     controls.enabled = true;
-    if (a) controls.view = { lat: a.lat, lon: a.lon, alt: 120_000, tilt: 0, heading: 0 };
+    if (to) controls.view = to;
+    else if (a) controls.view = { lat: a.lat, lon: a.lon, alt: 120_000, tilt: 0, heading: 0 };
     controls.changed = true;
     areaTools.hidden = true;
     hint.textContent = globeHint;
@@ -191,7 +196,7 @@ function closeArea(): void {
 }
 const globeHint = hint.textContent ?? '';
 
-back.addEventListener('click', closeArea);
+back.addEventListener('click', () => closeArea());
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (mode === 'area') closeArea();
@@ -204,12 +209,28 @@ window.addEventListener('keydown', (e) => {
   }
 });
 exaggeration.addEventListener('change', () => {
-  if (mode === 'area' && voxels.area) void voxels.build(voxels.area, Number(exaggeration.value));
+  const a = voxels.area;
+  if (mode !== 'area' || !a) return;
+  const k = Number(exaggeration.value);
+  void voxels.build(a, k).then(() => {
+    const dy = levelOf(voxels.heightAt(0, 0) ?? 0, k, a.cell) * a.cell - orbit.target.y;
+    orbit.target.y += dy;
+    areaCamera.position.y += dy;
+    orbit.update();
+  });
 });
 outlines.addEventListener('change', () => (outline.value = outlines.checked ? 1 : 0));
 window.addEventListener('hashchange', () => {
+  const area = areaFromHash();
+  if (area) {
+    const a = voxels.area;
+    if (mode !== 'area' || !a || a.lat !== area.lat || a.lon !== area.lon) void openArea(area.lat, area.lon);
+    return;
+  }
   const v = viewFromHash();
-  if (v && mode === 'globe') {
+  if (!v) return;
+  if (mode === 'area') closeArea(v);
+  else {
     controls.view = v;
     controls.changed = true;
   }
@@ -231,7 +252,8 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   raycaster.setFromCamera(ndc, areaCamera);
   const hit = raycaster.intersectObjects(voxels.group.children, false)[0];
   const a = voxels.area;
-  const h = hit && voxels.heightAt(hit.point.x, hit.point.z);
+  const inside = hit?.face ? hit.point.clone().addScaledVector(hit.face.normal, -0.01) : hit?.point;
+  const h = inside && voxels.heightAt(inside.x, inside.z);
   if (!a || h == null) return;
   const lat = a.lat - hit.point.z / METRES_PER_DEGREE;
   const lon = a.lon + hit.point.x / METRES_PER_DEGREE / Math.cos((a.lat * Math.PI) / 180);
@@ -255,8 +277,8 @@ function fly(now: number): void {
   if (t >= 1) flight = null;
 }
 
-const areaHash = /^#area=(-?[\d.]+),(-?[\d.]+)$/.exec(location.hash);
-if (areaHash) void openArea(Number(areaHash[1]), Number(areaHash[2]));
+const startArea = areaFromHash();
+if (startArea) void openArea(startArea.lat, startArea.lon);
 
 let lastHash = 0;
 let lastStatus = 0;
