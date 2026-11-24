@@ -160,6 +160,7 @@ async function openArea(lat: number, lon: number): Promise<void> {
   await veiled(() => {
     if (job !== opening) return;
     loadingArea = false;
+    flight = null;
     mode = 'area';
     controls.enabled = false;
     orbit.enabled = true;
