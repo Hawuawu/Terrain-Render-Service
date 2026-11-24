@@ -37,8 +37,10 @@ class OverviewSource(Protocol):
         """One 256 x 256 Web Mercator tile of heights."""
         ...
 
-    def grid_at(self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64]) -> Grid:
-        """Heights on a regular `(lons, lats)` mesh, row 0 at the north edge."""
+    def grid_at(
+        self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64], ref_lat: float | None = None
+    ) -> Grid:
+        """Heights on a regular `(lons, lats)` mesh, row 0 at the north edge, at the zoom matching `ref_lat`."""
         ...
 
 
@@ -71,7 +73,7 @@ class TerrainService:
         """Return the gzipped heights of a voxel patch or far field, sampled on first request."""
         cached = self.cache.get(patch.key)
         if cached is None:
-            cached = encode_columns(self.overview.grid_at(*patch.sample_points))
+            cached = encode_columns(self.overview.grid_at(*patch.sample_points, ref_lat=patch.origin.lat))
             self.cache.put(patch.key, cached)
         return cached
 

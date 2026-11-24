@@ -249,10 +249,16 @@ class TerrariumSource:
         )
         return self.sample(lons, lats, self.zoom_for(bounds, size))
 
-    def grid_at(self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64]) -> Grid:
-        """Heights on a regular `(lons, lats)` mesh (row 0 north), from the zoom whose pixels match its spacing."""
+    def grid_at(
+        self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64], ref_lat: float | None = None
+    ) -> Grid:
+        """Heights on a regular `(lons, lats)` mesh (row 0 north), from the zoom whose pixels match its spacing.
+
+        The zoom is chosen at `ref_lat` (default: the mesh's mean latitude); grids sharing it share a zoom, so their
+        overlapping samples agree.
+        """
         dlat = abs(float(lats[0, 0] - lats[1, 0]))
-        dlon = dlat / math.cos(math.radians(float(lats.mean())))
+        dlon = dlat / math.cos(math.radians(float(lats.mean()) if ref_lat is None else ref_lat))
         z = int(np.clip(math.ceil(math.log2(360 / (TERRARIUM_TILE * dlon))), 0, 15))
         return self.sample(lons, lats, z)
 

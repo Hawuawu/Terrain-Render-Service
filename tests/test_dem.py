@@ -150,6 +150,14 @@ def test_terrarium_grid_at_wraps_the_antimeridian_and_matches_spacing() -> None:
     assert heights[0, 1] == 0
 
 
+def test_terrarium_grid_at_takes_its_zoom_from_the_reference_latitude() -> None:
+    src = FakeTerrarium()
+    lons, lats = np.meshgrid([0.0, 0.01], [60.01, 60.0])
+    src.grid_at(lons, lats)
+    src.grid_at(lons, lats, ref_lat=0.0)
+    assert src.fetched[0][0] + 1 == src.fetched[-1][0]
+
+
 def test_terrarium_points_use_zoom_10() -> None:
     src = FakeTerrarium()
     assert src.points([(0.1, 0.0)]) == [512_000.0]

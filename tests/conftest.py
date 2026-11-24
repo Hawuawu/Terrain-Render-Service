@@ -25,7 +25,12 @@ class SlopeSource:
         lons = np.linspace(bounds.west, bounds.east, size, dtype=np.float32)
         return np.tile(lons * 1000, (size, 1)).astype(np.float32)
 
-    def grid_at(self, lons: npt.NDArray[np.float64], lats: npt.NDArray[np.float64]) -> Grid:  # noqa: ARG002
+    def grid_at(
+        self,
+        lons: npt.NDArray[np.float64],
+        lats: npt.NDArray[np.float64],  # noqa: ARG002
+        ref_lat: float | None = None,  # noqa: ARG002
+    ) -> Grid:
         self.calls += 1
         return (lons * 1000).astype(np.float32)
 
