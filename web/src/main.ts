@@ -124,8 +124,11 @@ const outline = { value: 1 };
 const viewer = { value: new Vector2() };
 /** Voxels are drawn up to this distance from the viewer. */
 const VOXEL_REACH_M = LOAD_M;
-/** Far-field vertices closer than this sink below sea level, out of the voxels' way (one far-field cell inside the reach). */
-const FAR_INNER_M = LOAD_M - 1_700;
+/**
+ * Far-field vertices inside the voxel reach sink below sea level, so coarse triangles never bridge a valley the voxels
+ * draw; only the ramp up to the first vertex outside the reach can show, under the voxels' edge.
+ */
+const FAR_INNER_M = VOXEL_REACH_M;
 const CURVE = `
   vec4 curveWorld = modelMatrix * vec4(transformed, 1.0);
   vec2 curveD = curveWorld.xz - viewer;
