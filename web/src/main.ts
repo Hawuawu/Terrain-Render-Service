@@ -125,8 +125,10 @@ let lastHash = 0;
 let lastStatus = 0;
 function frame(now: number): void {
   updateGround(controls.view);
-  // Voxel tops round heights by up to half a voxel; at the finest zoom keep the camera above that.
-  controls.ground = groundMetres * globe.exaggeration + voxelSize(meta.max_zoom) / 2;
+  // Orbit the higher of the true height and its voxel top at the finest zoom (tops round to whole voxels).
+  const finest = voxelSize(meta.max_zoom);
+  const exaggerated = groundMetres * globe.exaggeration;
+  controls.ground = Math.max(exaggerated, Math.round(exaggerated / finest) * finest);
   controls.apply(camera);
   const v = controls.view;
   camera.near = Math.max(0.5, v.alt * 0.001);
