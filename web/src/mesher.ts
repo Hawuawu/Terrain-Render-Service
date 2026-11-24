@@ -61,7 +61,8 @@ export function build(req: MeshRequest, heights: Int16Array): MeshResult {
     levels[k] = Math.round((Math.max(heights[k], 0) * req.exaggeration) / voxel);
     min = Math.min(min, levels[k]);
   }
-  const base = min - 1;
+  // Tile-edge walls reach below sea level (the lowest possible surface), so no neighbour, at any zoom, leaves a gap.
+  const base = Math.min(min, 0) - 1;
   const level = (i: number, j: number) => (i < 0 || j < 0 || i >= N || j >= N ? base : levels[j * N + i]);
   const lon = (i: number) => b.west + i * cell;
   const lat = (j: number) => b.north - j * cell;
