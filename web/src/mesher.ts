@@ -1,7 +1,7 @@
 // VXLEngine-style voxel chunk mesher for a flat local area: quantise column heights into cube levels,
 // greedy-merge equal top faces into rectangles and side walls into runs. x points east, y up, z south.
 import { bandHeight, hypsometric, tintBand } from './palette.ts';
-import { type AreaGrid, CHUNK, type ChunkMesh, MAX_MERGE, levelOf } from './shared.ts';
+import { type AreaGrid, CHUNK, type ChunkMesh, MAX_MERGE, type Range, levelOf } from './shared.ts';
 
 type Rgb = [number, number, number];
 
@@ -47,19 +47,20 @@ const SIDES = [
   { di: 0, dj: -1 },
 ] as const;
 
-export function buildChunk(
+export function buildChunk(area: AreaGrid, exaggeration: number, ci: number, cj: number, q = quantise(area, exaggeration)) {
+  const [i0, j0] = [ci * CHUNK, cj * CHUNK];
+  return buildRange(area, exaggeration, [i0, j0, Math.min(i0 + CHUNK, area.n), Math.min(j0 + CHUNK, area.n)], q);
+}
+
+/** Mesh columns `i0 <= i < i1`, `j0 <= j < j1`; columns outside the range only shape the walls. */
+export function buildRange(
   area: AreaGrid,
   exaggeration: number,
-  ci: number,
-  cj: number,
+  [i0, j0, i1, j1]: Range,
   q = quantise(area, exaggeration),
 ): Omit<ChunkMesh, 'type' | 'id'> {
   const { n, cell } = area;
   const { levels, bands, floor } = q;
-  const i0 = ci * CHUNK;
-  const j0 = cj * CHUNK;
-  const i1 = Math.min(i0 + CHUNK, n);
-  const j1 = Math.min(j0 + CHUNK, n);
   const at = (i: number, j: number) => j * n + i;
   const level = (i: number, j: number) => (i < 0 || j < 0 || i >= n || j >= n ? floor : levels[at(i, j)]);
   const X = (i: number) => (i - n / 2) * cell;

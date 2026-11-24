@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     cache_dir: Path = Path("/data/cache")
     web_dir: Path = Path(__file__).resolve().parents[2] / "web" / "dist"
-    cache_version: str = "v4"
+    cache_version: str = "v5"
     glo30_url: str = "https://copernicus-dem-30m.s3.amazonaws.com"
     glo90_url: str = "https://copernicus-dem-90m.s3.amazonaws.com"
     terrarium_url: str = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium"

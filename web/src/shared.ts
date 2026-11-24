@@ -13,10 +13,13 @@ export interface AreaGrid {
   cell: number;
 }
 
+/** Column range `[i0, j0, i1, j1)` of a grid. */
+export type Range = [number, number, number, number];
+
 export interface ChunkRequest extends AreaGrid {
   id: number;
   exaggeration: number;
-  chunks: [number, number][];
+  ranges: Range[];
 }
 
 export interface ChunkMesh {

@@ -6,14 +6,15 @@
 [![Image](https://github.com/Hawuawu/Terrain-Render-Service/actions/workflows/image.yml/badge.svg)](https://github.com/Hawuawu/Terrain-Render-Service/actions/workflows/image.yml)
 
 A terrain explorer in two views. A smooth **relief globe** (elevation colours and hillshade, rendered and cached by
-this FastAPI service) lets you fly anywhere; clicking a place opens a **voxel view** of the 20×20 km around it in the
-style of [VXLEngine](https://github.com/Hawuawu/VXLEngine), with about 40 m cubes fading into fog at the edge.
+this FastAPI service) lets you fly anywhere; clicking a place opens a **voxel view** around it in the style of
+[VXLEngine](https://github.com/Hawuawu/VXLEngine): about 40 m cubes streamed in 5 km pieces as you move, and a
+coarse far field that curves with the Earth out to the horizon.
 The same elevation data is exposed to AI agents as MCP tools (FastMCP).
 
 ```
 browser (three.js)
   ├ relief globe ── /relief/{z}/{x}/{y}.png ──► FastAPI ──► cache (volume) ──miss──► AWS Terrain Tiles (Terrarium)
-  ├ voxel view ──── /voxels/area.bin?lat&lon ─►    │
+  ├ voxel view ──── /voxels/{patch,far}.bin ──►    │
   │   └ Web Workers: levels, greedy mesh           │
   └──────────────── /api/elevation, /api/profile ─►└──► Copernicus DEM GLO-30/90 COGs (HTTP range reads)
 AI agent ────────── /mcp (FastMCP, HTTP) ───────►
@@ -30,17 +31,27 @@ parent imagery until the sharper tile arrives. Nothing on this path touches Cope
 
 ## Voxel view
 
-`GET /voxels/area.bin?lat&lon` returns 512×512 little-endian `int16` heights in metres (row 0 at the north edge,
-one sample per column centre) for a 20×20 km square, so a column is 39 m. The centre snaps to a 0.01° grid so nearby
-clicks share one cached area; `X-Area-Lat`, `X-Area-Lon`, `X-Area-Columns` and `X-Area-Cell-M` describe it.
-It is sampled from zoom-12 Terrarium tiles (up to 16, fetched in parallel), about 1 s on first request, then served
-from `$TERRAIN_CACHE_DIR/<version>/area/`.
+A voxel scene has a flat local frame (x east, z south, metres) around an origin snapped to a 0.01° grid, so nearby
+visits share cached pieces. Its ground streams in as square pieces:
 
-Four Web Workers port VXLEngine's `computeLevels` and `voxelChunk` over 8×8 chunks of 64×64 columns: heights ×
-exaggeration are quantised into cube levels (sea flattened to level 0), equal top faces within one tint band are
-greedy-merged into rectangles, and side walls into runs. The scene is flat, so merged faces leave no gaps; walls at
-chunk borders look at the neighbouring chunk's columns. The shader draws VXLEngine's block outlines and fades the
-terrain into fog from 6 km out to the 10 km edge.
+- `GET /voxels/patch.bin?lat&lon&i&j` is the 5×5 km patch `i` steps east and `j` south of the origin: 130×130
+  little-endian `int16` heights (row 0 north, one per 39 m column centre), the inner 128×128 plus a one-column
+  border shared with the neighbours, so walls match across patch seams.
+- `GET /voxels/far.bin?lat&lon&i&j` is the far field centred `i`, `j` steps of 50 km from the origin: 257×257
+  heights 1.6 km apart covering 400×400 km.
+
+`X-Origin-Lat`, `X-Origin-Lon`, `X-Samples` and `X-Cell-M` describe each response. Both are sampled from Terrarium
+tiles at the zoom matching their spacing (fetched in parallel), then served from `$TERRAIN_CACHE_DIR/<version>/`.
+
+The browser keeps the patches within 13 km of the viewer, requesting the nearest and those ahead of the direction of
+travel first (six at a time) and dropping those that fall behind, so the ground grows into view while walking. Four
+Web Workers port VXLEngine's `computeLevels` and `voxelChunk` over each patch: heights × exaggeration are quantised
+into cube levels (sea flattened to level 0), equal top faces within one tint band are greedy-merged into rectangles,
+and side walls into runs. The shader draws VXLEngine's block outlines.
+
+Past the voxels the smooth far field, sunk slightly so the voxels win where both overlap, takes over to the horizon.
+Both are bent down by the Earth's curvature around the viewer (d²/2R, about 3 km at 200 km) and fade into haze, so
+zooming out shows a curved horizon. After 100 km of walking the scene re-centres under the viewer.
 
 ## API
 
@@ -48,7 +59,8 @@ terrain into fog from 6 km out to the 10 km edge.
 |---|---|
 | `GET /` | relief globe (drag, wheel, right-drag to tilt; click to open the voxel view, with exaggeration, outline and back controls). The URL hash `#lat,lon,altitude_m,tilt,heading` or `#area=lat,lon` is a shareable view. |
 | `GET /relief/meta.json`, `GET /relief/{z}/{x}/{y}.png` | relief map tiles |
-| `GET /voxels/area.bin?lat&lon` | 20×20 km voxel area |
+| `GET /voxels/patch.bin?lat&lon&i&j` | 5×5 km voxel patch |
+| `GET /voxels/far.bin?lat&lon&i&j` | 400×400 km far field |
 | `GET /api/elevation?lat&lon` | height at a point (GLO-30) |
 | `GET /api/profile?from_lat&from_lon&to_lat&to_lon&samples` | heights along a line |
 | `POST /mcp` | MCP (streamable HTTP): `elevation_at`, `elevation_profile`, `area_stats`, `render_preview` (hillshaded PNG) |

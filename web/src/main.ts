@@ -16,8 +16,9 @@ import {
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { type AreaInfo, VoxelArea, fetchArea } from './area.ts';
 import { GlobeControls, type View } from './controls.ts';
+import { Horizon } from './horizon.ts';
+import { LOAD_M, type Origin, PatchField } from './patches.ts';
 import { ReliefGlobe } from './relief.ts';
 import { EARTH_RADIUS, geoToXyz, levelOf } from './shared.ts';
 
@@ -37,6 +38,20 @@ const HAZE = 0xb7c4cf;
 const METRES_PER_DEGREE = (6_371_008.8 * Math.PI) / 180;
 const MAX_AREA_LAT = 84;
 const wrapLon = (lon: number) => ((((lon + 180) % 360) + 360) % 360) - 180;
+const snap = (v: number) => Math.round(v * 100) / 100;
+/** The scene origin the service snaps (lat, lon) to: a 0.01° grid, so nearby visits share cached patches. */
+const originAround = (lat: number, lon: number): Origin => ({
+  lat: Math.max(-MAX_AREA_LAT, Math.min(MAX_AREA_LAT, snap(lat))),
+  lon: snap(wrapLon(lon)) === 180 ? -180 : snap(wrapLon(lon)),
+});
+const toLocal = (o: Origin, lat: number, lon: number) =>
+  new Vector3(wrapLon(lon - o.lon) * METRES_PER_DEGREE * Math.cos((o.lat * Math.PI) / 180), 0, -(lat - o.lat) * METRES_PER_DEGREE);
+const toGeo = (o: Origin, p: Vector3) => ({
+  lat: o.lat - p.z / METRES_PER_DEGREE,
+  lon: wrapLon(o.lon + p.x / METRES_PER_DEGREE / Math.cos((o.lat * Math.PI) / 180)),
+});
+/** Re-centre the scene's flat frame once the viewer walks this far from its origin. */
+const REORIGIN_M = 100_000;
 
 const renderer = new WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -48,7 +63,7 @@ const globeScene = new Scene();
 // No scene.background: three.js would clear the colour buffer on every pass of the layered relief render.
 renderer.setClearColor(0x02040a);
 const globeCamera = new PerspectiveCamera(60, 1, 1, 1e8);
-const meta = (await (await fetch('/relief/meta.json')).json()) as { max_zoom: number; area_size_m: number };
+const meta = (await (await fetch('/relief/meta.json')).json()) as { max_zoom: number };
 const globe = new ReliefGlobe(globeScene, meta.max_zoom);
 
 function areaFromHash(): { lat: number; lon: number } | null {
@@ -96,25 +111,40 @@ function renderMinimap(lat: number, lon: number): void {
 }
 
 // Voxel view: Lambert shading with VXLEngine-style block outlines (`grid` holds column/level coordinates, so
-// lines fall where their fractional part crosses zero) and a radial fade into the fog towards the area's edge.
+// lines fall where their fractional part crosses zero). Voxels end at the edge of the streamed patches, where the
+// smooth far field takes over out to the horizon. Both bend down with the Earth's curve around the viewer.
 const areaScene = new Scene();
 areaScene.background = new Color(HAZE);
-areaScene.fog = new Fog(HAZE, meta.area_size_m * 0.35, meta.area_size_m * 1.1);
-const areaCamera = new PerspectiveCamera(55, 1, 5, meta.area_size_m * 3);
+areaScene.fog = new Fog(HAZE, 20_000, 190_000);
+const areaCamera = new PerspectiveCamera(55, 1, 5, 400_000);
 const sun = new DirectionalLight(0xffffff, 2.0);
 sun.position.set(-0.6, 1, -0.4);
 areaScene.add(sun, new AmbientLight(0xffffff, 1.1));
 const outline = { value: 1 };
-const fade = { value: [meta.area_size_m * 0.3, meta.area_size_m * 0.5] };
+const viewer = { value: new Vector2() };
+const CURVE = `
+  vec4 curveWorld = modelMatrix * vec4(transformed, 1.0);
+  vec2 curveD = curveWorld.xz - viewer;
+  transformed.y -= dot(curveD, curveD) / ${(2 * EARTH_RADIUS).toFixed(1)};
+  vGround = curveD;`;
+function curved(shader: { uniforms: Record<string, unknown>; vertexShader: string; fragmentShader: string }, cut: string): void {
+  shader.uniforms.viewer = viewer;
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nuniform vec2 viewer;\nvarying vec2 vGround;')
+    .replace('#include <begin_vertex>', `#include <begin_vertex>${CURVE}`);
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying vec2 vGround;')
+    .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\nif (${cut}) discard;`);
+}
 const material = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
 material.onBeforeCompile = (shader) => {
+  curved(shader, `length(vGround) > ${(LOAD_M * 0.95).toFixed(1)}`);
   shader.uniforms.outline = outline;
-  shader.uniforms.fade = { value: new Vector2(...fade.value) };
   shader.vertexShader = shader.vertexShader
-    .replace('#include <common>', '#include <common>\nattribute vec2 grid;\nvarying vec2 vGrid;\nvarying vec2 vGround;')
-    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGrid = grid;\nvGround = position.xz;');
+    .replace('#include <common>', '#include <common>\nattribute vec2 grid;\nvarying vec2 vGrid;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGrid = grid;');
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform float outline;\nuniform vec2 fade;\nvarying vec2 vGrid;\nvarying vec2 vGround;')
+    .replace('#include <common>', '#include <common>\nuniform float outline;\nvarying vec2 vGrid;')
     .replace(
       '#include <opaque_fragment>',
       `#include <opaque_fragment>
@@ -122,28 +152,26 @@ material.onBeforeCompile = (shader) => {
       vec2 d = abs(fract(vGrid - 0.5) - 0.5) / fw;
       float line = (1.0 - min(min(d.x, d.y), 1.0)) * (1.0 - smoothstep(0.15, 0.45, max(fw.x, fw.y)));
       gl_FragColor.rgb *= 1.0 - 0.4 * outline * line;`,
-    )
-    .replace(
-      '#include <fog_fragment>',
-      `#include <fog_fragment>
-      float edge = smoothstep(fade.x, fade.y, length(vGround));
-      if (edge > 0.995) discard;
-      gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, edge);`,
     );
 };
-const voxels = new VoxelArea(material);
+const farMaterial = new MeshLambertMaterial({ vertexColors: true });
+farMaterial.onBeforeCompile = (shader) => curved(shader, `length(vGround) < ${(LOAD_M * 0.7).toFixed(1)}`);
+const voxels = new PatchField(material);
 areaScene.add(voxels.group);
+const horizon = new Horizon(
+  farMaterial,
+  (m) => areaScene.add(m),
+  (m) => areaScene.remove(m),
+);
+/** How far the far field sits below real height, so the voxels win where the two overlap. */
+const SINK_M = 60;
+let travel = { x: 0, z: 0 };
 const orbit = new OrbitControls(areaCamera, renderer.domElement);
 orbit.enabled = false;
 orbit.enableDamping = true;
 orbit.minDistance = 150;
-orbit.maxDistance = meta.area_size_m * 0.9;
+orbit.maxDistance = 60_000;
 orbit.maxPolarAngle = 1.45;
-orbit.addEventListener('change', () => {
-  const lim = meta.area_size_m * 0.4;
-  orbit.target.x = Math.max(-lim, Math.min(lim, orbit.target.x));
-  orbit.target.z = Math.max(-lim, Math.min(lim, orbit.target.z));
-});
 
 let mode: 'globe' | 'area' = 'globe';
 let flight: { from: View; to: View; start: number } | null = null;
@@ -171,8 +199,8 @@ async function veiled(change: () => void): Promise<void> {
 
 const fmt = (lat: number, lon: number) => `${lat.toFixed(4)}°, ${wrapLon(lon).toFixed(4)}°`;
 
-/** Open the voxel area around (lat, lon); `walk` continues from the current voxel view without the fly-in. */
-async function openArea(lat: number, lon: number, walk = false): Promise<void> {
+/** Open the voxel view at (lat, lon): stream the patches around it and show it once the ground nearby is ready. */
+async function openArea(lat: number, lon: number): Promise<void> {
   if (Math.abs(lat) > MAX_AREA_LAT) {
     readout.textContent = `${fmt(lat, lon)}: the voxel view covers latitudes up to ±${MAX_AREA_LAT}°.`;
     return;
@@ -181,33 +209,16 @@ async function openArea(lat: number, lon: number, walk = false): Promise<void> {
   loadingArea = true;
   const v = controls.view;
   const start = performance.now();
-  if (!walk) flight = { from: { ...v }, to: { lat, lon, alt: Math.min(v.alt, 60_000), tilt: 0, heading: 0 }, start };
-  status.textContent = `Loading 20 × 20 km around ${fmt(lat, lon)} …`;
-  let area: AreaInfo;
-  try {
-    area = await fetchArea(lat, lon);
-    if (job !== opening) return;
-    const offset = areaCamera.position.clone().sub(orbit.target);
-    const from = orbit.target.clone();
-    await voxels.build(area, Number(exaggeration.value));
-    if (walk && job === opening && mode === 'area') {
-      // Re-centre on the new area, keeping the camera where it was relative to the ground point it looked at.
-      loadingArea = false;
-      const east = wrapLon(lon - area.lon) * METRES_PER_DEGREE * Math.cos((area.lat * Math.PI) / 180);
-      orbit.target.set(east, from.y, -(lat - area.lat) * METRES_PER_DEGREE);
-      areaCamera.position.copy(orbit.target).add(offset);
-      orbit.update();
-      readout.textContent = `Centre ${fmt(area.lat, area.lon)}`;
-      history.replaceState(null, '', `#area=${area.lat},${area.lon}`);
-      return;
-    }
-    await sleep(Math.max(0, 1300 - (performance.now() - start)));
-  } catch (err) {
-    if (job === opening) {
-      loadingArea = false;
-      status.textContent = `Could not load the area: ${String(err)}`;
-    }
-    return;
+  flight = { from: { ...v }, to: { lat, lon, alt: Math.min(v.alt, 60_000), tilt: 0, heading: 0 }, start };
+  status.textContent = `Loading the ground around ${fmt(lat, lon)} …`;
+  const origin = originAround(lat, lon);
+  const at = toLocal(origin, lat, lon);
+  horizon.clear();
+  voxels.reset(origin, Number(exaggeration.value));
+  while (job === opening && !(voxels.readyAround(at, 6_000) && performance.now() - start > 1300)) {
+    voxels.update(at, { x: 0, z: 0 });
+    horizon.update(origin, at, voxels.exaggeration, SINK_M);
+    await sleep(50);
   }
   if (job !== opening) return;
   await veiled(() => {
@@ -217,20 +228,25 @@ async function openArea(lat: number, lon: number, walk = false): Promise<void> {
     mode = 'area';
     controls.enabled = false;
     orbit.enabled = true;
-    const centre = voxels.heightAt(0, 0) ?? 0;
-    const y = levelOf(centre, Number(exaggeration.value), area.cell) * area.cell;
-    orbit.target.set(0, y, 0);
-    areaCamera.position.set(0, y + 5500, 7500);
+    const centre = voxels.heightAt(at.x, at.z) ?? 0;
+    const y = levelOf(centre, Number(exaggeration.value), voxels.cell) * voxels.cell;
+    orbit.target.set(at.x, y, at.z);
+    areaCamera.position.set(at.x, y + 5500, at.z + 7500);
     orbit.update();
     areaTools.hidden = false;
-    hint.textContent = 'Drag to orbit · right-drag or arrow keys to move · wheel to zoom · click a voxel for its height';
-    readout.textContent = `Centre ${fmt(area.lat, area.lon)}: ${Math.round(centre)} m`;
-    history.replaceState(null, '', `#area=${area.lat},${area.lon}`);
+    hint.textContent = 'Drag to orbit · right-drag or arrow keys to move · wheel to zoom out to the horizon · click a voxel for its height';
+    readout.textContent = `${fmt(lat, lon)}: ${Math.round(centre)} m`;
+    history.replaceState(null, '', `#area=${lat.toFixed(4)},${wrapLon(lon).toFixed(4)}`);
   });
 }
 
+/** Where the viewer stands, in degrees. */
+function position(): { lat: number; lon: number } | null {
+  return voxels.origin && toGeo(voxels.origin, orbit.target);
+}
+
 function closeArea(to?: View): void {
-  const a = voxels.area;
+  const a = position();
   opening++;
   loadingArea = false;
   void veiled(() => {
@@ -244,6 +260,7 @@ function closeArea(to?: View): void {
     hint.textContent = globeHint;
     readout.textContent = 'Click a place to open a 20 × 20 km voxel view.';
     voxels.clear();
+    horizon.clear();
     const v = controls.view;
     history.replaceState(null, '', `#${v.lat.toFixed(5)},${v.lon.toFixed(5)},${Math.round(v.alt)},0,0`);
   });
@@ -258,6 +275,8 @@ window.addEventListener('keydown', (e) => {
     opening++;
     loadingArea = false;
     flight = null;
+    voxels.clear();
+    horizon.clear();
     status.textContent = 'Cancelled.';
     lastStatus = performance.now() + 2000;
   }
@@ -286,28 +305,34 @@ function arrowInput(): [number, number] {
 let settling = false;
 function walk(dt: number): void {
   const [ix, iy] = arrowInput();
-  const a = voxels.area;
-  if (!a) return;
+  const o = voxels.origin;
+  if (!o) return;
   if (!ix && !iy) {
-    if (settling) settling = Math.abs(followGround(orbit.target.clone(), a.cell, dt)) > 1;
+    travel = { x: 0, z: 0 };
+    if (settling) settling = Math.abs(followGround(orbit.target.clone(), voxels.cell, dt)) > 1;
     return;
   }
   settling = true;
   const f = orbit.target.clone().sub(areaCamera.position).setY(0).normalize();
   const right = new Vector3(-f.z, 0, f.x);
-  const speed = areaCamera.position.distanceTo(orbit.target) * 0.6;
-  const step = f.multiplyScalar(iy).add(right.multiplyScalar(ix)).normalize().multiplyScalar(speed * dt);
-  const next = orbit.target.clone().add(step);
-  const lim = meta.area_size_m * 0.4;
-  if (Math.abs(next.x) > lim || Math.abs(next.z) > lim) {
-    if (!loadingArea) {
-      const lat = a.lat - next.z / METRES_PER_DEGREE;
-      const lon = wrapLon(a.lon + next.x / METRES_PER_DEGREE / Math.cos((a.lat * Math.PI) / 180));
-      void openArea(lat, lon, true);
-    }
-    return;
-  }
-  followGround(next, a.cell, dt);
+  const speed = Math.min(areaCamera.position.distanceTo(orbit.target), 15_000) * 0.6;
+  const dir = f.multiplyScalar(iy).add(right.multiplyScalar(ix)).normalize();
+  travel = { x: dir.x, z: dir.z };
+  followGround(orbit.target.clone().addScaledVector(dir, speed * dt), voxels.cell, dt);
+  if (Math.hypot(orbit.target.x, orbit.target.z) > REORIGIN_M) reorigin();
+}
+
+/** Move the scene's origin under the viewer, keeping the camera where it is relative to the ground. */
+function reorigin(): void {
+  const here = position();
+  if (!here) return;
+  const origin = originAround(here.lat, here.lon);
+  const shift = toLocal(origin, here.lat, here.lon).sub(orbit.target.clone().setY(0));
+  orbit.target.add(shift);
+  areaCamera.position.add(shift);
+  orbit.update();
+  voxels.reset(origin, Number(exaggeration.value));
+  horizon.clear();
 }
 
 /** Move the orbit target (and camera with it) to `next`, easing its height towards the ground; returns the remaining gap. */
@@ -320,12 +345,12 @@ function followGround(next: Vector3, cell: number, dt: number): number {
 }
 
 exaggeration.addEventListener('change', () => {
-  const a = voxels.area;
-  if (mode !== 'area' || !a) return;
+  if (mode !== 'area' || !voxels.origin) return;
   const k = Number(exaggeration.value);
-  void voxels.build(a, k).then(() => {
+  horizon.build(k, SINK_M);
+  void voxels.rebuild(k).then(() => {
     const ground = voxels.heightAt(orbit.target.x, orbit.target.z) ?? 0;
-    const dy = levelOf(ground, k, a.cell) * a.cell - orbit.target.y;
+    const dy = levelOf(ground, k, voxels.cell) * voxels.cell - orbit.target.y;
     orbit.target.y += dy;
     areaCamera.position.y += dy;
     orbit.update();
@@ -335,8 +360,9 @@ outlines.addEventListener('change', () => (outline.value = outlines.checked ? 1 
 window.addEventListener('hashchange', () => {
   const area = areaFromHash();
   if (area) {
-    const a = voxels.area;
-    if (mode !== 'area' || !a || a.lat !== area.lat || a.lon !== area.lon) void openArea(area.lat, area.lon);
+    const a = position();
+    const near = a && Math.abs(a.lat - area.lat) < 1e-3 && Math.abs(wrapLon(a.lon - area.lon)) < 1e-3;
+    if (mode !== 'area' || !near) void openArea(area.lat, area.lon);
     return;
   }
   const v = viewFromHash();
@@ -363,12 +389,11 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   }
   raycaster.setFromCamera(ndc, areaCamera);
   const hit = raycaster.intersectObjects(voxels.group.children, false)[0];
-  const a = voxels.area;
+  const o = voxels.origin;
   const inside = hit?.face ? hit.point.clone().addScaledVector(hit.face.normal, -0.01) : hit?.point;
   const h = inside && voxels.heightAt(inside.x, inside.z);
-  if (!a || h == null) return;
-  const lat = a.lat - hit.point.z / METRES_PER_DEGREE;
-  const lon = a.lon + hit.point.x / METRES_PER_DEGREE / Math.cos((a.lat * Math.PI) / 180);
+  if (!o || h == null) return;
+  const { lat, lon } = toGeo(o, hit.point);
   readout.textContent = `${fmt(lat, lon)}: ${Math.round(h)} m`;
 });
 
@@ -425,18 +450,26 @@ function frame(now: number): void {
   } else {
     walk(dt);
     orbit.update();
+    const o = voxels.origin;
+    viewer.value.set(orbit.target.x, orbit.target.z);
+    if (o) {
+      voxels.update(orbit.target, travel);
+      horizon.update(o, orbit.target, voxels.exaggeration, SINK_M);
+    }
     renderer.clear();
     renderer.render(areaScene, areaCamera);
-    const a = voxels.area;
-    minimap.hidden = !a;
-    if (a) {
-      const t = orbit.target;
-      renderMinimap(a.lat - t.z / METRES_PER_DEGREE, a.lon + t.x / METRES_PER_DEGREE / Math.cos((a.lat * Math.PI) / 180));
-    }
-    if (now - lastStatus > 250 && voxels.area && !loadingArea) {
+    const here = position();
+    minimap.hidden = !here;
+    if (here) renderMinimap(here.lat, here.lon);
+    if (now - lastStatus > 250 && here && !loadingArea) {
       lastStatus = now;
-      const a = voxels.area;
-      status.textContent = `${((a.n * a.cell) / 1000).toFixed(0)} × ${((a.n * a.cell) / 1000).toFixed(0)} km · ${a.cell.toFixed(0)} m voxels · ${voxels.group.children.length} chunks`;
+      const s = voxels.stats;
+      const loading = s.loading ? ` · loading ${s.loading} more` : '';
+      status.textContent = `${s.shown} pieces of 5 × 5 km · ${voxels.cell.toFixed(0)} m voxels${loading} · horizon ${horizon.mesh ? 'shown' : 'loading'}`;
+      if (now - lastHash > 1000) {
+        lastHash = now;
+        history.replaceState(null, '', `#area=${here.lat.toFixed(4)},${here.lon.toFixed(4)}`);
+      }
     }
   }
   requestAnimationFrame(frame);

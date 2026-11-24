@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildChunk, quantise } from './mesher.ts';
+import { buildChunk, buildRange, quantise } from './mesher.ts';
 import { CHUNK, levelOf, mercatorLat, mercatorTile } from './shared.ts';
 
 type Vec = [number, number, number];
@@ -51,6 +51,19 @@ test('walls between chunks use the neighbouring chunk, so chunk borders inside t
   const { tris } = triangles(flat, n);
   assert.ok(!tris.some((w) => w.normal[0] > 0.99 || w.normal[2] > 0.99), 'no east or south walls inside the area');
   assert.ok(tris.some((w) => w.normal[0] < -0.99) && tris.some((w) => w.normal[2] < -0.99));
+});
+
+test('a patch meshes only its inner columns, and a matching border leaves its edges without walls', () => {
+  const n = 18;
+  const heights = new Int16Array(n * n).fill(200);
+  const m = buildRange({ heights, n, cell: CELL }, 1, [1, 1, n - 1, n - 1]);
+  const ys = new Set<number>();
+  for (let k = 0; k < m.positions.length; k += 3) {
+    assert.ok(Math.abs(m.positions[k]) <= ((n - 2) / 2) * CELL + 1e-6);
+    assert.ok(Math.abs(m.positions[k + 2]) <= ((n - 2) / 2) * CELL + 1e-6);
+    ys.add(m.positions[k + 1]);
+  }
+  assert.deepEqual([...ys], [levelOf(200, 1, CELL) * CELL]);
 });
 
 test('sea flattens to level 0 and coastlines stop merges', () => {
