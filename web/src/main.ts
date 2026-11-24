@@ -103,6 +103,7 @@ orbit.addEventListener('change', () => {
 let mode: 'globe' | 'area' = 'globe';
 let flight: { from: View; to: View; start: number } | null = null;
 let opening = 0;
+let loadingArea = false;
 
 function resize(): void {
   const { clientWidth: w, clientHeight: h } = container;
@@ -127,6 +128,7 @@ const fmt = (lat: number, lon: number) => `${lat.toFixed(4)}°, ${lon.toFixed(4)
 
 async function openArea(lat: number, lon: number): Promise<void> {
   const job = ++opening;
+  loadingArea = true;
   const v = controls.view;
   flight = { from: { ...v }, to: { lat, lon, alt: Math.min(v.alt, 60_000), tilt: 0, heading: 0 }, start: performance.now() };
   status.textContent = `Loading 20 × 20 km around ${fmt(lat, lon)} …`;
@@ -136,11 +138,16 @@ async function openArea(lat: number, lon: number): Promise<void> {
     await voxels.build(area, Number(exaggeration.value));
     await sleep(Math.max(0, 1300 - (performance.now() - flight.start)));
   } catch (err) {
-    status.textContent = `Could not load the area: ${String(err)}`;
+    if (job === opening) {
+      loadingArea = false;
+      status.textContent = `Could not load the area: ${String(err)}`;
+    }
     return;
   }
   if (job !== opening) return;
   await veiled(() => {
+    if (job !== opening) return;
+    loadingArea = false;
     mode = 'area';
     controls.enabled = false;
     orbit.enabled = true;
@@ -158,6 +165,8 @@ async function openArea(lat: number, lon: number): Promise<void> {
 
 function closeArea(): void {
   const a = voxels.area;
+  opening++;
+  loadingArea = false;
   void veiled(() => {
     mode = 'globe';
     orbit.enabled = false;
@@ -168,6 +177,8 @@ function closeArea(): void {
     hint.textContent = globeHint;
     readout.textContent = 'Click a place to open a 20 × 20 km voxel view.';
     voxels.clear();
+    const v = controls.view;
+    history.replaceState(null, '', `#${v.lat.toFixed(5)},${v.lon.toFixed(5)},${Math.round(v.alt)},0,0`);
   });
 }
 const globeHint = hint.textContent ?? '';
@@ -240,7 +251,7 @@ function frame(now: number): void {
     globeCamera.updateProjectionMatrix();
     globe.update(v, container.clientHeight);
     globe.render(renderer, globeCamera);
-    if (controls.changed && !flight && now - lastHash > 500 && opening === 0) {
+    if (controls.changed && !flight && now - lastHash > 500 && !loadingArea) {
       controls.changed = false;
       lastHash = now;
       const hash = [v.lat.toFixed(5), v.lon.toFixed(5), Math.round(v.alt), Math.round(v.tilt), Math.round(v.heading)];
