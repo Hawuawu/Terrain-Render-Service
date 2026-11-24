@@ -8,10 +8,11 @@ import {
   Raycaster,
   Scene,
   Vector2,
+  Vector3,
   WebGLRenderer,
 } from 'three';
 import { GlobeControls, type View } from './controls.ts';
-import { xyzToGeo } from './shared.ts';
+import { EARTH_RADIUS, geoToXyz, xyzToGeo } from './shared.ts';
 import { VoxelGlobe } from './tiles.ts';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -103,9 +104,22 @@ async function pick(x: number, y: number, z: number): Promise<void> {
   readout.textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°: ${Math.round(body.elevation_m)} m`;
 }
 
+const groundRay = new Raycaster();
+function groundUnder(v: View): number {
+  const up = new Vector3(...geoToXyz(v.lon, v.lat, 1));
+  groundRay.set(up.clone().multiplyScalar(EARTH_RADIUS * 3), up.clone().negate());
+  const hit = groundRay.intersectObjects(globe.meshes(), false)[0];
+  return hit ? hit.point.length() - EARTH_RADIUS : 0;
+}
+
+let lastGround = 0;
 let lastHash = 0;
 let lastStatus = 0;
 function frame(now: number): void {
+  if (now - lastGround > 200) {
+    lastGround = now;
+    controls.ground = groundUnder(controls.view);
+  }
   controls.apply(camera);
   const v = controls.view;
   camera.near = Math.max(0.5, v.alt * 0.001);

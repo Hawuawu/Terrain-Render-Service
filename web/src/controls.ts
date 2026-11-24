@@ -17,6 +17,8 @@ export interface View {
 export class GlobeControls {
   view: View;
   changed = true;
+  /** Height of the rendered terrain under the view centre, so the camera orbits the surface, not sea level. */
+  ground = 0;
 
   constructor(
     readonly element: HTMLElement,
@@ -76,7 +78,7 @@ export class GlobeControls {
     this.changed = true;
   }
 
-  /** Place the camera `alt` metres from the sea-level point under (lat, lon), tilted and turned. */
+  /** Place the camera `alt` metres from the ground point under (lat, lon), tilted and turned. */
   apply(camera: PerspectiveCamera): void {
     const { lat, lon, alt, tilt, heading } = this.view;
     const la = lat * DEG;
@@ -87,7 +89,7 @@ export class GlobeControls {
     const h = heading * DEG;
     const t = tilt * DEG;
     const forward = north.clone().multiplyScalar(Math.cos(h)).addScaledVector(east, Math.sin(h));
-    const target = up.clone().multiplyScalar(EARTH_RADIUS);
+    const target = up.clone().multiplyScalar(EARTH_RADIUS + this.ground);
     camera.position
       .copy(target)
       .addScaledVector(up, alt * Math.cos(t))
